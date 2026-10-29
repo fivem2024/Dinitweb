@@ -5,14 +5,14 @@ workers_dev = true
 
 [vars]
 # Use the exact website origin (scheme + host only). For project Pages, use e.g. https://username.github.io.
-ALLOWED_ORIGINS = "https://REPLACE-WITH-YOUR-GITHUB-PAGES-HOST"
+ALLOWED_ORIGINS = "https://fivem2024.github.io"
 # Set this to an address on a domain enabled for Cloudflare Email Sending.
 MAIL_FROM = "DinitWeb <mail@replace-with-your-domain.dk>"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "dinitweb"
-database_id = "REPLACE-AFTER-CREATING-D1"
+database_id = "5bfd7074-43f8-4a4c-8dfa-92d3c91f955e"
 migrations_dir = "migrations"
 
 [[send_email]]
