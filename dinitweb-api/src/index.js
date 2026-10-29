@@ -17,15 +17,15 @@ export default {
       const path = url.pathname.replace(/\/+$/, "") || "/";
       if (path === "/api/health" && request.method === "GET") return json({ ok: true, service: "DinitWeb" }, 200, origin);
 
-      if (path === "/api/auth/register" && request.method === "POST") return register(request, env, origin);
-      if (path === "/api/auth/verify" && request.method === "POST") return verifyEmail(request, env, origin);
-      if (path === "/api/auth/login" && request.method === "POST") return login(request, env, origin);
-      if (path === "/api/auth/logout" && request.method === "POST") return logout(request, env, origin);
+      if (path === "/api/auth/register" && request.method === "POST") return await register(request, env, origin);
+      if (path === "/api/auth/verify" && request.method === "POST") return await verifyEmail(request, env, origin);
+      if (path === "/api/auth/login" && request.method === "POST") return await login(request, env, origin);
+      if (path === "/api/auth/logout" && request.method === "POST") return await logout(request, env, origin);
       if (path === "/api/me" && request.method === "GET") {
         const user = await requireUser(request, env);
         return json({ user: publicUser(user) }, 200, origin);
       }
-      if (path === "/api/contact" && request.method === "POST") return createContact(request, env, origin);
+      if (path === "/api/contact" && request.method === "POST") return await createContact(request, env, origin);
       if (path === "/api/my-threads" && request.method === "GET") {
         const user = await requireUser(request, env);
         const rows = await env.DB.prepare("SELECT * FROM contact_threads WHERE customer_id = ? ORDER BY updated_at DESC LIMIT 50").bind(user.id).all();
@@ -40,7 +40,7 @@ export default {
           const messages = await env.DB.prepare("SELECT id, author_role, author_name, body, created_at FROM contact_messages WHERE thread_id = ? ORDER BY created_at ASC").bind(thread.id).all();
           return json({ thread, messages: messages.results }, 200, origin);
         }
-        if (request.method === "POST") return customerReply(request, env, origin, user, thread);
+        if (request.method === "POST") return await customerReply(request, env, origin, user, thread);
       }
       if (path === "/api/threads" && request.method === "GET") {
         await requireAdmin(request, env);
@@ -63,8 +63,8 @@ export default {
           const rows = await env.DB.prepare("SELECT id, author_role, author_name, body, created_at FROM contact_messages WHERE thread_id = ? ORDER BY created_at ASC").bind(threadId).all();
           return json({ thread, messages: rows.results }, 200, origin);
         }
-        if (action === "reply" && request.method === "POST") return replyToContact(request, env, origin, admin, thread);
-        if (action === "status" && request.method === "PATCH") return updateThreadStatus(request, env, origin, thread);
+        if (action === "reply" && request.method === "POST") return await replyToContact(request, env, origin, admin, thread);
+        if (action === "status" && request.method === "PATCH") return await updateThreadStatus(request, env, origin, thread);
       }
       return json({ error: "Ruten findes ikke." }, 404, origin);
     } catch (error) {
