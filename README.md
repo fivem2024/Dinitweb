@@ -1,2 +1,0 @@
-# Dinitweb
-Hjemmeside webshop

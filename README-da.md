@@ -1,5 +1,3 @@
-Warning: fs was declared with const; use let for reassignable variables.
-Warning: p was declared with const; use let for reassignable variables.
 # DinitWeb — hjemmeside, kontaktformular og portal
 
 `index.html` er hjemmesidens indgangsside til GitHub Pages. `studie-nord-admin.html` er samme side med det oprindelige filnavn. Logoets mørke og blå udtryk er bevaret på det mørke tema i `dinitweb-logo.png` og `dinitweb-wordmark.png`.

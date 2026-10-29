@@ -1,0 +1,79 @@
+/* Contact form, customer portal and DinitWeb admin inbox */
+#publicSite .contact-form-layout{max-width:1160px;margin:auto;display:grid;grid-template-columns:.85fr 1.15fr;gap:70px;align-items:start}
+#publicSite .contact-copy h2{font-size:34px;line-height:1.2;margin:10px 0 14px;color:#f0f5fc}
+#publicSite .contact-copy p{font-size:13px;line-height:1.8;color:#adbed1;max-width:410px}
+#publicSite .portal-link{border:0;background:none;padding:12px 0;color:#72baff;font-size:11px;font-weight:700;text-align:left}
+#publicSite .contact-form{display:grid;grid-template-columns:1fr 1fr;gap:14px;background:#0b1a2a;border:1px solid #20344b;padding:24px;border-radius:10px;box-shadow:0 16px 45px #0002}
+#publicSite .contact-form label{display:flex;flex-direction:column;gap:7px;color:#c6d4e5;font-size:10px;font-weight:600}
+#publicSite .contact-form label:nth-of-type(4){grid-column:1/-1}
+#publicSite .contact-form input,#publicSite .contact-form textarea{width:100%;border:1px solid #293e56;background:#081525;border-radius:5px;padding:12px;color:#edf4ff;font-size:12px;outline:none;transition:border .15s,box-shadow .15s}
+#publicSite .contact-form input:focus,#publicSite .contact-form textarea:focus{border-color:#2589ed;box-shadow:0 0 0 3px #087cf01c}
+#publicSite .contact-form input::placeholder,#publicSite .contact-form textarea::placeholder{color:#71839a}
+#publicSite .contact-form textarea{resize:vertical;min-height:115px}
+#publicSite .contact-form>button{justify-self:start;grid-column:1/-1}
+#publicSite .form-status{grid-column:1/-1;margin:0;font-size:12px;line-height:1.65;color:#f0c681;min-height:0}
+#publicSite .form-status.success{padding:12px 14px;border-radius:6px;background:#0f302b;border:1px solid #236553;color:#b5f3d3}
+#publicSite .form-status.error{color:#ffb4a7}
+#dinitPortalOverlay{position:fixed;inset:0;z-index:100;background:#020812d9;backdrop-filter:blur(6px);display:grid;place-items:center;padding:20px}
+.dinit-dialog{width:min(760px,96vw);max-height:min(88vh,850px);overflow:auto;background:#091625;border:1px solid #29415d;border-radius:12px;box-shadow:0 28px 90px #0008;color:#e9f1fb}
+.dinit-dialog.compact{width:min(470px,96vw)}
+.dinit-dialog-head{position:sticky;top:0;z-index:1;background:#0a1929ed;backdrop-filter:blur(12px);border-bottom:1px solid #1c3047;display:flex;justify-content:space-between;align-items:center;padding:17px 21px}
+.dinit-dialog-head h2{font:700 16px Manrope,sans-serif;margin:0;color:#f2f7ff}
+.dinit-close{width:30px;height:30px;border:1px solid #29415d;border-radius:6px;background:#102238;color:#d7e5f6;font-size:18px}
+.dinit-dialog-body{padding:22px}
+.dinit-brand{font:800 13px Manrope;color:#eaf4ff;letter-spacing:.1px}
+.dinit-brand em{font-style:normal;color:#3e9aff}
+.dinit-muted{font-size:11px;line-height:1.6;color:#9badc1;margin:7px 0 18px}
+.dinit-form{display:grid;gap:12px}
+.dinit-form label{display:grid;gap:6px;font-size:10px;color:#bfd0e3;font-weight:600}
+.dinit-form input,.dinit-form textarea{width:100%;border:1px solid #29415d;background:#06111e;border-radius:5px;padding:11px;color:#eff6ff;font-size:12px;outline:none}
+.dinit-form input:focus,.dinit-form textarea:focus{border-color:#2689ed;box-shadow:0 0 0 3px #087cf01c}
+.dinit-form button,.dinit-button{border:0;border-radius:5px;padding:11px 15px;background:#087cf0;color:#fff;font-size:11px;font-weight:700;cursor:pointer}
+.dinit-form button:disabled{opacity:.6;cursor:wait}
+.dinit-links{display:flex;gap:14px;flex-wrap:wrap;margin-top:15px}
+.dinit-links button{border:0;background:transparent;color:#73b9ff;font-size:10px;padding:2px 0;cursor:pointer}
+.dinit-error{margin:12px 0 0;padding:10px 12px;border:1px solid #713d42;background:#311d26;border-radius:5px;color:#ffbdaf;font-size:11px;line-height:1.55}
+.dinit-success{margin:12px 0 0;padding:10px 12px;border:1px solid #246653;background:#0d3028;border-radius:5px;color:#b9efd8;font-size:11px;line-height:1.55}
+.dinit-portal-top{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:18px}
+.dinit-portal-top p{font-size:11px;color:#9fb1c4;margin:4px 0 0}
+.dinit-logout{border:1px solid #2b425a;background:#0d2034;color:#d9e6f5;padding:8px 10px;border-radius:5px;font-size:10px;cursor:pointer}
+.dinit-thread-list{display:grid;gap:8px}
+.dinit-thread-row{width:100%;text-align:left;padding:13px 14px;border:1px solid #20354c;border-radius:7px;background:#0c1d30;color:#e8f1fc;cursor:pointer}
+.dinit-thread-row:hover{border-color:#3989d2}
+.dinit-thread-row strong{font-size:11px;display:block}
+.dinit-thread-row small{font-size:9px;color:#98aac0;display:block;margin-top:5px}
+.dinit-thread-row .preview{font-size:10px;color:#bac8d8;display:block;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dinit-thread-status{float:right;font-size:9px;padding:4px 7px;border-radius:20px;background:#133d35;color:#a9edcf}
+.dinit-thread-status.closed{background:#2b3541;color:#b2bfce}
+.dinit-back{border:0;background:transparent;color:#72baff;padding:0 0 12px;font-size:10px;cursor:pointer}
+.dinit-conversation{display:grid;gap:9px;max-height:45vh;overflow:auto;margin:14px 0}
+.dinit-message{padding:12px;border:1px solid #233a52;background:#0b1b2c;border-radius:7px}
+.dinit-message.admin{border-color:#1c4e82;background:#0b2138}
+.dinit-message strong{display:block;font-size:10px;color:#dcecff}
+.dinit-message time{font-size:9px;color:#8da2ba}
+.dinit-message p{font-size:11px;line-height:1.65;color:#c7d3e1;white-space:pre-wrap;margin:9px 0 0}
+.dinit-contact-card{padding:12px 14px;background:#0c1d30;border:1px solid #20354c;border-radius:7px;font-size:10px;line-height:1.8;color:#bdccdd}
+.dinit-contact-card b{color:#eaf3fd}
+.dinit-empty{padding:28px 18px;text-align:center;border:1px dashed #30455e;border-radius:8px;color:#9cafc3;font-size:11px;line-height:1.7}
+.admin-inbox{display:grid;grid-template-columns:minmax(235px,.8fr) minmax(0,1.5fr);gap:13px;min-height:480px}
+.admin-inbox-list,.admin-inbox-detail{background:#fff;border:1px solid #edf0eb;border-radius:8px;padding:15px}
+.admin-inbox-list h3,.admin-inbox-detail h3{font:700 13px Manrope;margin:0 0 12px;color:#27352d}
+.admin-inbox-items{display:grid;gap:7px;max-height:610px;overflow:auto}
+.admin-inbox-row{border:1px solid #e9eee8;background:#fff;border-radius:6px;text-align:left;padding:11px;cursor:pointer}
+.admin-inbox-row:hover,.admin-inbox-row.selected{border-color:#7aabdc;background:#f4f9fe}
+.admin-inbox-row strong{font-size:10px;display:block;color:#27352d}
+.admin-inbox-row small{font-size:9px;color:#839087;display:block;margin-top:4px}
+.admin-inbox-row p{font-size:9px;color:#68756c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:7px 0 0}
+.admin-inbox-detail .dinit-contact-card{background:#f7fafc;border-color:#e5ebef;color:#5e6d62}
+.admin-inbox-detail .dinit-contact-card b{color:#283b30}
+.admin-inbox-detail .dinit-message{background:#f7f9fb;border-color:#e7ecef}
+.admin-inbox-detail .dinit-message.admin{background:#eef6ff;border-color:#cfe2f5}
+.admin-inbox-detail .dinit-message strong{color:#354d63}
+.admin-inbox-detail .dinit-message p{color:#506276}
+.admin-inbox-detail .dinit-conversation{max-height:390px}
+.admin-inbox-detail .dinit-form textarea{background:#fff;color:#203326;border-color:#dce4de}
+.admin-inbox-detail .dinit-form label{color:#647168}
+.admin-inbox-empty{height:100%;display:grid;place-items:center;text-align:center;color:#8b958d;font-size:11px;line-height:1.7;padding:24px}
+.dinit-admin-logout{border:1px solid #dce5de;background:#fff;color:#4f6457;border-radius:5px;padding:7px 10px;font-size:10px;cursor:pointer}
+@media(max-width:700px){#publicSite .contact-form-layout{grid-template-columns:1fr;gap:22px}#publicSite .contact-form{padding:18px;gap:11px}.dinit-dialog-body{padding:17px}.admin-inbox{grid-template-columns:1fr}.admin-inbox-items{max-height:250px}.admin-inbox-detail .dinit-conversation{max-height:300px}}
+@media(max-width:430px){#publicSite .contact-form{grid-template-columns:1fr}#publicSite .contact-form label:nth-of-type(4),#publicSite .contact-form>button,#publicSite .form-status{grid-column:1}.dinit-portal-top{align-items:flex-start}.dinit-dialog-head{padding:14px 16px}}

@@ -1,0 +1,19 @@
+name = "dinitweb-api"
+main = "src/index.js"
+compatibility_date = "2026-10-29"
+workers_dev = true
+
+[vars]
+# Use the exact website origin (scheme + host only). For project Pages, use e.g. https://username.github.io.
+ALLOWED_ORIGINS = "https://REPLACE-WITH-YOUR-GITHUB-PAGES-HOST"
+# Set this to an address on a domain enabled for Cloudflare Email Sending.
+MAIL_FROM = "DinitWeb <mail@replace-with-your-domain.dk>"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dinitweb"
+database_id = "REPLACE-AFTER-CREATING-D1"
+migrations_dir = "migrations"
+
+[[send_email]]
+name = "EMAIL"
