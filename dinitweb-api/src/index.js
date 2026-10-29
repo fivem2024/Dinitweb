@@ -1,5 +1,5 @@
 const encoder = new TextEncoder();
-const PBKDF2_ITERATIONS = 600_000;
+const PBKDF2_ITERATIONS = 100_000;
 const SESSION_DAYS = 7;
 const MAX_BODY_BYTES = 20_000;
 
