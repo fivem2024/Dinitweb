@@ -24,6 +24,7 @@
     }
     return data;
   }
+  window.dinitAdminRequest = (path, options = {}) => api(path, { ...options, auth: true });
 
   function saveSession(data) {
     state.token = data.token;
@@ -155,7 +156,7 @@
   function installInbox() {
     const adminContent = document.querySelector(".admin-content");
     if (!adminContent || document.getElementById("view-inbox")) return;
-    document.getElementById("view-invoices")?.insertAdjacentHTML("afterend", inboxSection);
+    document.getElementById("view-customers")?.insertAdjacentHTML("afterend", inboxSection);
     const nav = document.createElement("button");
     nav.className = "side-link";
     nav.dataset.page = "inbox";
@@ -267,6 +268,7 @@
     document.getElementById("publicSite")?.classList.add("hidden");
     document.getElementById("adminApp")?.classList.add("active");
     history.replaceState(null, "", "#admin");
+    window.dispatchEvent(new Event("dinit:admin-ready"));
   };
 
   const token = state.token;
@@ -281,3 +283,4 @@
     showSite();
   }
 })();
+
