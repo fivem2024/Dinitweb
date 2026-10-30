@@ -26,6 +26,70 @@ export default {
         return json({ user: publicUser(user) }, 200, origin);
       }
       if (path === "/api/contact" && request.method === "POST") return await createContact(request, env, origin);
+      if (path === "/api/admin/customers" && request.method === "GET") {
+        await requireAdmin(request, env);
+        const rows = await env.DB.prepare(`SELECT c.*, (SELECT COUNT(*) FROM customer_notes n WHERE n.customer_id = c.id) AS note_count
+          FROM customers c ORDER BY c.updated_at DESC LIMIT 500`).all();
+        return json({ customers: rows.results }, 200, origin);
+      }
+      if (path === "/api/admin/customers" && request.method === "POST") {
+        const admin = await requireAdmin(request, env);
+        const body = await readJson(request);
+        const companyName = text(body.company_name, 160);
+        const contactName = text(body.contact_name, 120);
+        const email = normalizeEmail(body.email);
+        const phone = text(body.phone, 40);
+        const service = text(body.service, 300);
+        const status = text(body.status, 20) || "Lead";
+        if (!companyName || !contactName || !isEmail(email) || !["Lead", "Aktiv", "Afventer", "Afsluttet"].includes(status)) {
+          throw new ApiError("Udfyld firmanavn, kontaktperson og en gyldig e-mail.", 400, "invalid_customer");
+        }
+        const id = crypto.randomUUID();
+        await env.DB.prepare(`INSERT INTO customers (id, company_name, contact_name, email, phone, service, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(id, companyName, contactName, email, phone, service, status).run();
+        const customer = await env.DB.prepare("SELECT * FROM customers WHERE id = ?").bind(id).first();
+        return json({ customer, created_by: admin.name }, 201, origin);
+      }
+      if (path === "/api/admin/settings" && request.method === "GET") {
+        await requireAdmin(request, env);
+        const settings = await env.DB.prepare("SELECT company_name, contact_email, phone FROM business_settings WHERE id = 1").first();
+        return json({ settings }, 200, origin);
+      }
+      if (path === "/api/admin/settings" && request.method === "PATCH") {
+        await requireAdmin(request, env);
+        const body = await readJson(request);
+        const companyName = text(body.company_name, 160);
+        const contactEmail = normalizeEmail(body.contact_email);
+        const phone = text(body.phone, 40);
+        if (!companyName || (contactEmail && !isEmail(contactEmail))) throw new ApiError("Udfyld et virksomhedsnavn og en gyldig e-mail.", 400, "invalid_settings");
+        await env.DB.prepare(`UPDATE business_settings SET company_name = ?, contact_email = ?, phone = ?,
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = 1`).bind(companyName, contactEmail, phone).run();
+        const settings = await env.DB.prepare("SELECT company_name, contact_email, phone FROM business_settings WHERE id = 1").first();
+        return json({ settings }, 200, origin);
+      }
+      const customerNotesMatch = path.match(/^\/api\/admin\/customers\/([a-f0-9-]+)\/notes$/i);
+      if (customerNotesMatch) {
+        const admin = await requireAdmin(request, env);
+        const customerId = customerNotesMatch[1];
+        const customer = await env.DB.prepare("SELECT id FROM customers WHERE id = ?").bind(customerId).first();
+        if (!customer) throw new ApiError("Kundeprofilen blev ikke fundet.", 404, "customer_not_found");
+        if (request.method === "GET") {
+          const rows = await env.DB.prepare("SELECT * FROM customer_notes WHERE customer_id = ? ORDER BY created_at DESC LIMIT 500").bind(customerId).all();
+          return json({ notes: rows.results }, 200, origin);
+        }
+        if (request.method === "POST") {
+          const body = await readJson(request);
+          const title = text(body.title, 160);
+          const noteBody = text(body.body, 5000);
+          if (!title || !noteBody) throw new ApiError("Skriv en overskrift og et journalnotat.", 400, "invalid_note");
+          const id = crypto.randomUUID();
+          await env.DB.prepare("INSERT INTO customer_notes (id, customer_id, title, body, author_name) VALUES (?, ?, ?, ?, ?)")
+            .bind(id, customerId, title, noteBody, admin.name).run();
+          await env.DB.prepare("UPDATE customers SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?").bind(customerId).run();
+          const note = await env.DB.prepare("SELECT * FROM customer_notes WHERE id = ?").bind(id).first();
+          return json({ note }, 201, origin);
+        }
+      }
       if (path === "/api/my-threads" && request.method === "GET") {
         const user = await requireUser(request, env);
         const rows = await env.DB.prepare("SELECT * FROM contact_threads WHERE customer_id = ? ORDER BY updated_at DESC LIMIT 50").bind(user.id).all();
@@ -277,10 +341,30 @@ async function keyedHash(value, email, secret) {
 }
 
 async function sendMail(env, message) {
-  if (!env.EMAIL || !env.OWNER_EMAIL || !env.MAIL_FROM || env.MAIL_FROM.includes("replace-with-your-domain")) {
+  if (!env.RESEND_API_KEY || !env.OWNER_EMAIL || !env.MAIL_FROM || env.MAIL_FROM.includes("replace-with-your-domain")) {
     throw new ApiError("E-mailafsendelse er ikke sat op endnu.", 503, "email_not_configured");
   }
-  return env.EMAIL.send({ from: env.MAIL_FROM, ...message });
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: env.MAIL_FROM,
+      to: message.to,
+      reply_to: message.replyTo,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+    }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    console.error("Resend rejected email", response.status, result?.message || result?.name || "unknown error");
+    throw new ApiError("E-mailen kunne ikke sendes. Prøv igen senere.", 502, "email_send_failed");
+  }
+  return result;
 }
 
 async function sendMailSafe(env, message) {
@@ -336,3 +420,4 @@ function json(data, status = 200, origin) {
 class ApiError extends Error {
   constructor(message, status, code) { super(message); this.status = status; this.code = code; }
 }
+
