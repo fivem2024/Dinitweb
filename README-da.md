@@ -8,15 +8,15 @@ Brugere kan oprette konto med e-mailbekræftelse. Adminadgang gives kun til veri
 
 ## Trin-for-trin opsætning
 
-Hjemmesidens filer og GitHub Pages-workflow ligger allerede i repository’et. Cloudflare API’et er endnu ikke sat op. Du skal bruge din Cloudflare-konto, Node.js og et domæne, som Cloudflare kan sende e-mail fra.
+Dette er en deployklar startpakke, men den er endnu ikke koblet til et live GitHub-repository eller Cloudflare-projekt. Du skal bruge dine GitHub- og Cloudflare-konti, Node.js og et domæne, som Cloudflare kan sende e-mail fra.
 
 ### A. Læg hjemmesiden i GitHub
 
-1. Filerne ligger allerede i `fivem2024/Dinitweb` på branch `main`; du skal ikke kopiere dem ind igen.
-2. I GitHub: åbn repository’ets **Settings → Pages** og vælg **GitHub Actions** som kilde.
-3. Åbn **Actions**, og kontrollér at workflowet **Deploy DinitWeb to GitHub Pages** kører færdigt.
-4. Find hjemmesidens origin. For `https://fivem2024.github.io/Dinitweb/` er origin `https://fivem2024.github.io` — uden `/Dinitweb/`. Skriv den ned til Cloudflare-konfigurationen.
-5. Workflowet udgiver kun hjemmesidens offentlige filer; Worker-kildekoden bliver i repository’et, men ikke på hjemmesiden.
+1. Opret eller åbn repository'et, som skal være hjemmesiden.
+2. Kopiér indholdet af `outputs/` ind i repository'ets rodmappe. Sørg for også at kopiere den skjulte mappe `.github/` og dens `workflows/pages.yml`.
+3. Find hjemmesidens origin: Hvis adressen er `https://ditnavn.github.io/min-side/`, er origin `https://ditnavn.github.io` — uden `/min-side/`. Skriv den ned.
+4. Push ændringerne til branch `main`. Hvis repository'et bruger en anden standardbranch, så ret `branches: [main]` i `.github/workflows/pages.yml` til den branch.
+5. I GitHub: åbn repository'ets **Settings → Pages** og vælg **GitHub Actions** som kilde. Workflowet udgiver kun hjemmesidens offentlige filer, ikke Worker-kildekoden.
 
 ### B. Gør Cloudflare klar
 
@@ -84,6 +84,17 @@ Gem filen, push den til `main`, og vent på at **Actions → Deploy DinitWeb to 
 
 16. Send en prøvehenvendelse fra kontaktformularen med en anden e-mailadresse. Du bør se bekræftelsen på hjemmesiden, modtage en notifikation i `OWNER_EMAIL`-indbakken og kunne svare under **Henvendelser**. Kundens e-mail får dit svar.
 
+### D. Aktivér kundekartotek og journal
+
+Admin-panelet bruger Cloudflare D1 til kundekartotek, kundeprofiler, journalnotater og virksomhedsindstillinger. Den nye migration tilføjer tabellerne uden at slette konti eller henvendelser. Kør den fra `outputs/dinitweb-api/` (eller den tilsvarende API-mappe i din GitHub-kopi):
+
+```powershell
+npx wrangler d1 migrations apply dinitweb --remote
+npx wrangler deploy
+```
+
+Push derefter hjemmesidefilerne til GitHub, så Pages udgiver adminændringerne. Admin-menuen viser ikke længere eksempelprojekter eller eksempel-fakturaer. Kundejournalen ligger på den enkelte kundeprofil, og **Indstillinger** gemmer virksomhedsnavn, kontakt-e-mail og telefon i D1. Der er ingen eksempel-kunder indlæst i det nye kundekartotek.
+
 ## Sikkerhed og funktioner
 
 - Login kræver bekræftet e-mail og adgangskode; sessionstoken ligger kun i fanens `sessionStorage`.
@@ -91,6 +102,8 @@ Gem filen, push den til `main`, og vent på at **Actions → Deploy DinitWeb to 
 - Adgangskoder hashes i Worker, sessionsnøgler hashes i D1, og beskeder indsættes med parameteriserede databaseforespørgsler.
 - API'et begrænser CORS til de origins, der står i `ALLOWED_ORIGINS`, og har enkel rate limiting på formular og login.
 - Kontaktformularen kan bruges uden konto. Hvis en bruger er logget ind, knyttes henvendelsen til kontoen, så samtalen kan ses i kundeportalen.
-- Fakturaer, projekter og kundekartotek i det ældre adminpanel er stadig demonstrationsdata; denne pakke kobler den nye indbakke, brugere og kontaktformular til D1.
+- Kundekartotek, profiler, journalnotater og virksomhedsindstillinger gemmes i D1 efter migration `0002_admin_crm.sql`.
+- Kundehistorik slettes først, hvis en administrator selv sletter D1-data; installation af migrationen rydder ikke konti eller henvendelser.
 
 Cloudflare D1 bruger versionsstyrede SQL-migrationer; behold migrationerne i `dinitweb-api/migrations/` fremover.
+
