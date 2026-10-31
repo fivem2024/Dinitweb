@@ -1,0 +1,136 @@
+(() => {
+  'use strict';
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const api = (path, options = {}) => {
+    if (typeof window.dinitAdminRequest !== 'function') throw new Error('Admin-panelets API er ikke indlæst. Genindlæs siden.');
+    return window.dinitAdminRequest(path, options);
+  };
+
+  const style = document.createElement('style');
+  style.textContent = `
+  #view-employment-contracts .employment-grid{display:grid;grid-template-columns:minmax(300px,.9fr) minmax(380px,1.1fr);gap:18px;align-items:start}
+  #view-employment-contracts .employment-form,#view-staff .staff-form{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+  #view-employment-contracts .employment-form label,#view-staff .staff-form label{display:flex;flex-direction:column;gap:7px;color:#b8c9db;font-size:12px}
+  #view-employment-contracts .employment-form input,#view-employment-contracts .employment-form select,#view-employment-contracts .employment-form textarea,#view-staff .staff-form input{width:100%;border:1px solid #294158;background:#071321;color:#eef5fc;border-radius:8px;padding:11px 12px;font:inherit;min-width:0}
+  #view-employment-contracts .employment-form textarea{min-height:180px;resize:vertical;line-height:1.55}
+  #view-employment-contracts .employment-form .wide,#view-staff .staff-form .wide{grid-column:1/-1}
+  #view-employment-contracts .employment-list{display:grid;gap:10px}
+  .employment-record{border:1px solid #213951;border-radius:10px;padding:15px;background:#0d1c2c}
+  .employment-record h3{margin:0 0 5px;color:#f1f6fc}.employment-record p{margin:4px 0;color:#a9bdd2;font-size:12px}
+  .employment-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .employment-actions button,.staff-remove{border:1px solid #294158;background:#102238;color:#eaf2fb;border-radius:7px;padding:8px 11px;cursor:pointer;font:inherit;font-size:12px}
+  .employment-actions .danger,.staff-remove{color:#ffb4b4;border-color:#6a3439}
+  #view-staff .staff-note{border:1px solid #294158;background:#0d1c2c;border-radius:10px;padding:14px;color:#afc2d6;font-size:13px;line-height:1.6;margin:0 0 16px}
+  #view-staff .staff-list{display:grid;gap:10px;margin-top:16px}.staff-record{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid #213951;background:#0d1c2c;border-radius:10px;padding:14px}.staff-record b,.staff-record small{display:block}.staff-record small{color:#9eb2c8;margin-top:4px}
+  @media(max-width:900px){#view-employment-contracts .employment-grid{grid-template-columns:1fr}}
+  `;
+  document.head.append(style);
+
+  const sidebar = $('.sidebar');
+  if (!sidebar) return;
+  const navButton = (page, icon, label) => { const b = document.createElement('button'); b.className = 'side-link'; b.dataset.page = page; b.innerHTML = `<span class="ico">${icon}</span><span class="label">${label}</span>`; b.addEventListener('click', () => window.go?.(page)); return b; };
+  const contractLink = $('[data-page="contracts"]');
+  const adminLabel = Array.from(sidebar.querySelectorAll('.side-label')).find(el => el.textContent.trim().toLowerCase() === 'administration');
+  if (contractLink && ! $('[data-page="employment-contracts"]')) contractLink.after(navButton('employment-contracts', '▧', 'Ansættelseskontrakter'));
+  const settingsLink = $('[data-page="settings"]');
+  if (settingsLink && ! $('[data-page="staff"]')) settingsLink.before(navButton('staff', '♙', 'Medarbejdere'));
+
+  const settingsView = $('#view-settings');
+  if (settingsView && !$('#view-employment-contracts')) {
+    const employmentView = document.createElement('section');
+    employmentView.className = 'section-view';
+    employmentView.id = 'view-employment-contracts';
+    employmentView.innerHTML = `<div class="page-title"><div><div class="admin-eyebrow">Personale</div><h1>Ansættelseskontrakter</h1><p>Opret et udkast med standardtekst eller skriv din egen aftale. Udskriv eller gem som PDF.</p></div><button class="action" type="button" id="employmentNew">＋ Ny ansættelseskontrakt</button></div>
+      <div class="employment-grid"><div class="card"><div class="card-head"><div><h3>Opret ansættelseskontrakt</h3><p>Udfyld medarbejderens oplysninger og aftalens vilkår.</p></div></div>
+      <form id="employmentForm" class="employment-form">
+        <label>Medarbejderens fulde navn<input name="employee_name" required maxlength="120" placeholder="Navn Efternavn"></label>
+        <label>Stilling<input name="job_title" required maxlength="160" placeholder="Fx Webudvikler"></label>
+        <label>E-mail<input name="employee_email" type="email" maxlength="190" placeholder="medarbejder@eksempel.dk"></label>
+        <label>Telefon<input name="employee_phone" type="tel" maxlength="40" placeholder="Telefonnummer"></label>
+        <label>Startdato<input name="start_date" type="date"></label>
+        <label>Aftaletype<select name="mode" id="employmentMode"><option value="standard">Standardudkast</option><option value="custom">Egen aftaletekst</option></select></label>
+        <label class="wide">Kontrakttitel<input name="title" required maxlength="200" value="Ansættelsesaftale"></label>
+        <label>Løn / vederlag<input name="pay" maxlength="160" placeholder="Udfyld aftalt løn eller skriv i vilkårene"></label>
+        <label>Arbejdstid<input name="hours" maxlength="160" placeholder="Udfyld aftalt arbejdstid"></label>
+        <label class="wide">Arbejdssted<input name="workplace" maxlength="240" placeholder="Udfyld aftalt arbejdssted"></label>
+        <label class="wide" id="employmentBodyLabel">Aftale og særlige vilkår<textarea name="body" id="employmentBody" maxlength="12000" placeholder="Skriv særlige vilkår. Standardudkastet tilpasses medarbejderens oplysninger."></textarea></label>
+        <p class="wide empty-note" id="employmentHint">Standardudkastet udfyldes med navn, stilling, startdato og de løn-/arbejdstidsoplysninger, du angiver. Gennemgå alle vilkår og få aftalen kontrolleret, før den underskrives.</p>
+        <button class="action wide" type="submit">Gem kontrakt og lav PDF</button>
+      </form></div><div class="card"><div class="card-head"><div><h3>Gemte kontrakter</h3><p>Udkast kan åbnes og gemmes som PDF igen.</p></div><button class="subtle" type="button" id="employmentRefresh">Opdater</button></div><div class="employment-list" id="employmentList"><p class="empty-note">Henter kontrakter…</p></div></div></div>`;
+    settingsView.before(employmentView);
+  }
+  if (settingsView && !$('#view-staff')) {
+    const staffView = document.createElement('section');
+    staffView.className = 'section-view'; staffView.id = 'view-staff';
+    staffView.innerHTML = `<div class="page-title"><div><div class="admin-eyebrow">Administration</div><h1>Medarbejdere</h1><p>Giv medarbejdere adgang til de daglige opgaver i admin-panelet.</p></div></div>
+      <div class="card"><div class="staff-note">Medarbejdere kan oprette kunder, journalnotater, kontrakter og fakturaer samt læse og besvare henvendelser. Kun ejeren kan oprette eller fjerne medarbejderadgang, ændre indstillinger og slette kunder, journalnotater, henvendelser, fakturaer og kontrakter.<br><br>Når du opretter en medarbejder, skal personen vælge <b>Opret bruger</b> med den samme e-mailadresse, oprette en adgangskode og bekræfte e-mailen. Hvis personen allerede har en konto, kan vedkommende logge ind igen.</div>
+      <form class="staff-form" id="staffForm"><label>Medarbejderens navn<input name="name" required maxlength="100" placeholder="Navn Efternavn"></label><label>E-mail<input name="email" required type="email" maxlength="190" placeholder="medarbejder@firma.dk"></label><label class="wide">Telefon (valgfri)<input name="phone" type="tel" maxlength="40" placeholder="Telefonnummer"></label><button class="action wide" type="submit">＋ Opret medarbejder</button></form>
+      <div class="staff-list" id="staffList"><p class="empty-note">Henter medarbejdere…</p></div></div>`;
+    settingsView.before(staffView);
+  }
+
+  let owner = false;
+  const guardUi = () => {
+    owner = Boolean(window.dinitCurrentUser?.isOwner);
+    const staffMenu = $('[data-page="staff"]'); if (staffMenu) staffMenu.hidden = !owner;
+    const settingsMenu = $('[data-page="settings"]'); if (settingsMenu) settingsMenu.hidden = !owner;
+    const staffView = $('#view-staff'); if (staffView && !owner && staffView.classList.contains('active')) window.go?.('dashboard');
+    document.querySelectorAll('#adminApp [data-invoice-delete],#adminApp [data-contract-delete],#adminApp [data-delete-note],#adminApp #deleteCustomerButton,#adminApp #dinitDeleteThread,#adminApp [data-employment-delete]').forEach(el => { el.hidden = !owner; });
+  };
+  document.addEventListener('dinit:admin-ready', () => { guardUi(); window.loadEmploymentContracts?.(); if (owner) window.loadStaff?.(); });
+  new MutationObserver(guardUi).observe($('#adminApp'), { childList: true, subtree: true });
+  guardUi();
+
+  const standardEmploymentBody = (data) => {
+    const val = (key, fallback = 'Aftales skriftligt') => data.get(key)?.trim() || fallback;
+    const name = val('employee_name', 'Medarbejderen'), job = val('job_title', 'Stilling aftales'), start = val('start_date', 'Aftales'), pay = val('pay'), hours = val('hours'), place = val('workplace');
+    const extra = val('body', 'Ingen særlige vilkår angivet.');
+    return [`## 1. Parterne`, `Arbejdsgiver: ${(window.dinitBusinessSettings?.company_name || 'DinitWeb')}.`, `Medarbejder: ${name}${data.get('employee_email') ? ` (${data.get('employee_email')})` : ''}.`, '', `## 2. Stilling og start`, `Medarbejderen ansættes som ${job}. Startdato: ${start}.`, '', `## 3. Arbejdssted og arbejdstid`, `Arbejdssted: ${place}.`, `Arbejdstid: ${hours}.`, '', `## 4. Løn og betaling`, `Løn/vederlag: ${pay}. Eventuelle tillæg, pension, ferie og øvrige vilkår aftales skriftligt mellem parterne.`, '', `## 5. Øvrige vilkår`, extra, '', `## 6. Ændringer og afslutning`, `Ændringer til aftalen skal aftales skriftligt. Opsigelse og øvrige ansættelsesvilkår følger den særskilte aftale og gældende regler.`, '', `## 7. Underskrifter`, `Parterne bekræfter med deres underskrift, at aftalens konkrete vilkår er gennemgået.`, '', `Arbejdsgiver: ${(window.dinitBusinessSettings?.company_name || 'DinitWeb')}`, `Dato og underskrift: ____________________________________`, '', `Medarbejder: ${name}`, `Dato og underskrift: ____________________________________`].join('\n');
+  };
+  const contractDocument = (contract) => {
+    const settings = window.dinitBusinessSettings || {};
+    const markup = (text) => String(text || '').split(/\r?\n/).map(line => { const safe = esc(line); const h = line.match(/^#{1,4}\s+(.+)$/); return h ? `<h2>${esc(h[1])}</h2>` : line.startsWith('- ') ? `<p class="li">• ${safe.slice(2)}</p>` : line ? `<p>${safe}</p>` : ''; }).join('');
+    const logo = new URL('dinitweb-wordmark.png', location.href).href;
+    const win = window.open('', '_blank');
+    if (!win) { alert('Tillad pop-ups for at åbne PDF-visningen.'); return; }
+    const html = `<!doctype html><html lang="da"><meta charset="utf-8"><title>${esc(contract.title)}</title><style>*{box-sizing:border-box}body{margin:0 auto;padding:16mm;max-width:210mm;background:#06111f;color:#eaf2fb;font:12pt/1.6 Arial,sans-serif}header{display:flex;justify-content:space-between;align-items:center;border:1px solid #294158;border-radius:12px;background:#0d1c2c;padding:16px 20px}header img{width:165px;filter:brightness(0) invert(1)}header div{text-align:right}h1{margin:28px 0 4px}.meta{color:#a9bdd2}.panel{margin-top:20px;padding:22px 26px;background:#0d1c2c;border:1px solid #294158;border-radius:12px}.facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:22px}.fact{background:#102238;border:1px solid #294158;border-radius:8px;padding:10px}.fact small{display:block;color:#90abc5;text-transform:uppercase}.contract h2{font-size:14pt;margin:22px 0 5px}.contract p{margin:6px 0;white-space:pre-wrap}.sign{margin-top:35px;border-top:1px solid #55708a;padding-top:8px;min-height:60px}.note{font-size:9pt;color:#91a8bf;margin-top:24px}@media print{html,body{background:#06111f!important;color:#eaf2fb!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.panel,header,.fact{break-inside:avoid}.toolbar{display:none}}@page{size:A4;margin:0}</style><body><header><img src="${logo}" alt="DinitWeb"><div><b>${esc(settings.company_name || 'DinitWeb')}</b>${settings.phone ? `<br>Telefon: ${esc(settings.phone)}` : ''}${settings.contact_email ? `<br>${esc(settings.contact_email)}` : ''}</div></header><h1>${esc(contract.title)}</h1><div class="meta">Ansættelsesudkast · Oprettet ${esc(new Date(contract.created_at || Date.now()).toLocaleDateString('da-DK'))}</div><main class="panel"><div class="facts"><div class="fact"><small>Medarbejder</small>${esc(contract.employee_name)}</div><div class="fact"><small>Stilling</small>${esc(contract.job_title)}</div><div class="fact"><small>E-mail</small>${esc(contract.employee_email || '—')}</div><div class="fact"><small>Telefon</small>${esc(contract.employee_phone || '—')}</div><div class="fact"><small>Startdato</small>${esc(contract.start_date || 'Aftales')}</div></div><article class="contract">${markup(contract.body)}</article><div class="sign">Arbejdsgiver · dato og underskrift</div><div class="sign">Medarbejder · dato og underskrift</div><p class="note">Udkast til gennemgang. Kontrollér, at alle vilkår passer til ansættelsen og gældende regler, før aftalen underskrives.</p></main><script>window.onload=()=>setTimeout(()=>window.print(),400)<\/script></body></html>`;
+    win.document.open(); win.document.write(html); win.document.close();
+  };
+
+  window.loadEmploymentContracts = async () => {
+    const list = $('#employmentList'); if (!list) return;
+    try { const result = await api('/api/admin/employment-contracts'); const records = result.contracts || []; list.innerHTML = records.length ? records.map(c => `<article class="employment-record"><h3>${esc(c.title)}</h3><p>${esc(c.employee_name)} · ${esc(c.job_title)} · ${esc(c.start_date || 'Startdato aftales')}</p><p>${esc(c.employee_email || 'Ingen e-mail angivet')} · oprettet ${esc(new Date(c.created_at).toLocaleDateString('da-DK'))}</p><div class="employment-actions"><button type="button" data-employment-pdf="${esc(c.id)}">Åbn / gem PDF</button>${owner ? `<button type="button" class="danger" data-employment-delete="${esc(c.id)}">Slet</button>` : ''}</div></article>`).join('') : '<p class="empty-note">Ingen ansættelseskontrakter endnu.</p>'; list._records = records; guardUi(); }
+    catch (error) { list.innerHTML = `<p class="empty-note">${esc(error.message)}</p>`; }
+  };
+  window.loadStaff = async () => {
+    const list = $('#staffList'); if (!list || !owner) return;
+    try { const result = await api('/api/admin/staff'); const records = result.staff || []; list.innerHTML = records.length ? records.map(s => `<article class="staff-record"><div><b>${esc(s.name)}</b><small>${esc(s.email)}${s.phone ? ` · ${esc(s.phone)}` : ''} · ${s.email_verified_at ? 'Konto bekræftet' : 'Afventer konto/bekræftelse'}</small></div><button class="staff-remove" type="button" data-staff-remove="${esc(s.id)}">Fjern adgang</button></article>`).join('') : '<p class="empty-note">Du har ikke oprettet medarbejdere endnu.</p>'; }
+    catch (error) { list.innerHTML = `<p class="empty-note">${esc(error.message)}</p>`; }
+  };
+
+  const form = $('#employmentForm');
+  const mode = $('#employmentMode');
+  const setMode = () => { const custom = mode?.value === 'custom'; const body = $('#employmentBody'); const hint = $('#employmentHint'); if (body) { body.required = custom; body.placeholder = custom ? 'Skriv hele din egen aftaletekst.' : 'Tilføj særlige vilkår, der skal med i standardudkastet.'; } if (hint) hint.hidden = custom; };
+  mode?.addEventListener('change', setMode); setMode();
+  $('#employmentNew')?.addEventListener('click', () => { form?.reset(); setMode(); form?.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+  $('#employmentRefresh')?.addEventListener('click', () => window.loadEmploymentContracts());
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault(); const data = new FormData(form); const custom = mode.value === 'custom';
+    const payload = Object.fromEntries(data); payload.body = custom ? String(data.get('body') || '').trim() : standardEmploymentBody(data); delete payload.mode; delete payload.pay; delete payload.hours; delete payload.workplace;
+    const submit = form.querySelector('[type="submit"]'); submit.disabled = true;
+    try { const result = await api('/api/admin/employment-contracts', { method: 'POST', body: payload }); await window.loadEmploymentContracts(); form.reset(); setMode(); contractDocument(result.contract); }
+    catch (error) { alert(error.message); }
+    finally { submit.disabled = false; }
+  });
+  $('#staffForm')?.addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget, button = form.querySelector('[type="submit"]'); button.disabled = true; try { const result = await api('/api/admin/staff', { method: 'POST', body: Object.fromEntries(new FormData(form)) }); alert(result.message || 'Medarbejderen er oprettet.'); form.reset(); await window.loadStaff(); } catch (error) { alert(error.message); } finally { button.disabled = false; } });
+  document.addEventListener('click', async (event) => {
+    const pdf = event.target.closest('[data-employment-pdf]');
+    if (pdf) { const record = $('#employmentList')?._records?.find(c => c.id === pdf.dataset.employmentPdf); if (record) contractDocument(record); }
+    const removeStaff = event.target.closest('[data-staff-remove]');
+    if (removeStaff && owner) { if (!confirm('Fjern medarbejderens adgang? Personen mister straks adgang til admin-panelet. Kontoens øvrige oplysninger slettes ikke.')) return; try { await api(`/api/admin/staff/${encodeURIComponent(removeStaff.dataset.staffRemove)}`, { method: 'DELETE' }); await window.loadStaff(); } catch (error) { alert(error.message); } }
+    const deleteContract = event.target.closest('[data-employment-delete]');
+    if (deleteContract && owner) { if (!confirm('Slet denne ansættelseskontrakt permanent?')) return; try { await api(`/api/admin/employment-contracts/${encodeURIComponent(deleteContract.dataset.employmentDelete)}`, { method: 'DELETE' }); await window.loadEmploymentContracts(); } catch (error) { alert(error.message); } }
+  });
+})();
+
