@@ -23,7 +23,48 @@ export default {
       if (path === "/api/auth/logout" && request.method === "POST") return await logout(request, env, origin);
       if (path === "/api/me" && request.method === "GET") {
         const user = await requireUser(request, env);
-        return json({ user: publicUser(user) }, 200, origin);
+        return json({ user: await publicUser(user, env) }, 200, origin);
+      }
+      if (path === "/api/admin/staff" && request.method === "GET") {
+        await requireOwner(request, env);
+        const rows = await env.DB.prepare(`SELECT u.id, u.name, u.email, u.phone, u.email_verified_at, s.created_at
+          FROM staff_accounts s JOIN users u ON u.id = s.user_id ORDER BY s.created_at DESC`).all();
+        return json({ staff: rows.results }, 200, origin);
+      }
+      if (path === "/api/admin/staff" && request.method === "POST") {
+        const owner = await requireOwner(request, env);
+        const body = await readJson(request);
+        const name = text(body.name, 100), email = normalizeEmail(body.email), phone = text(body.phone, 40);
+        if (!name || !isEmail(email)) throw new ApiError("Udfyld navn og en gyldig e-mail.", 400, "invalid_staff");
+        if (isOwnerEmail(email, env)) throw new ApiError("Ejerkontoen kan ikke oprettes som medarbejder.", 400, "owner_cannot_be_staff");
+        let user = await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(email).first();
+        if (user && await env.DB.prepare("SELECT user_id FROM staff_accounts WHERE user_id = ?").bind(user.id).first()) {
+          throw new ApiError("E-mailen er allerede tilknyttet en medarbejder.", 409, "staff_exists");
+        }
+        if (!user) {
+          const id = crypto.randomUUID(), salt = randomHex(16), randomPassword = randomHex(32);
+          const passwordHash = await hashPassword(randomPassword, salt);
+          await env.DB.prepare(`INSERT INTO users (id, name, email, phone, password_hash, password_salt, role)
+            VALUES (?, ?, ?, ?, ?, ?, 'customer')`).bind(id, name, email, phone, passwordHash, salt).run();
+          user = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(id).first();
+        }
+        await env.DB.prepare(`INSERT INTO staff_accounts (user_id, created_by)
+          VALUES (?, ?) ON CONFLICT(user_id) DO NOTHING`).bind(user.id, owner.id).run();
+        return json({ staff: { id: user.id, name: user.name, email: user.email, phone: user.phone || "", email_verified_at: user.email_verified_at }, message: "Medarbejderen er oprettet. Personen skal oprette adgangskode og bekræfte e-mailen via Opret bruger." }, 201, origin);
+      }
+      const staffDeleteMatch = path.match(/^\/api\/admin\/staff\/([a-f0-9-]+)$/i);
+      if (staffDeleteMatch && request.method === "DELETE") {
+        const owner = await requireOwner(request, env);
+        const staffId = staffDeleteMatch[1];
+        if (staffId === owner.id) throw new ApiError("Ejerkontoen kan ikke fjernes her.", 400, "cannot_remove_owner");
+        const staff = await env.DB.prepare("SELECT user_id FROM staff_accounts WHERE user_id = ?").bind(staffId).first();
+        if (!staff) throw new ApiError("Medarbejderen blev ikke fundet.", 404, "staff_not_found");
+        await env.DB.batch([
+          env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(staffId),
+          env.DB.prepare("DELETE FROM staff_accounts WHERE user_id = ?").bind(staffId),
+          env.DB.prepare("UPDATE users SET role = 'customer' WHERE id = ?").bind(staffId),
+        ]);
+        return json({ ok: true }, 200, origin);
       }
       if (path === "/api/contact" && request.method === "POST") return await createContact(request, env, origin);
       if (path === "/api/admin/customers" && request.method === "GET") {
@@ -52,14 +93,14 @@ export default {
       }
       const customerDeleteMatch = path.match(/^\/api\/admin\/customers\/([a-f0-9-]+)$/i);
       if (customerDeleteMatch && request.method === "DELETE") {
-        await requireAdmin(request, env);
+        await requireOwner(request, env);
         const result = await env.DB.prepare("DELETE FROM customers WHERE id = ?").bind(customerDeleteMatch[1]).run();
         if (!result.meta?.changes) throw new ApiError("Kundeprofilen blev ikke fundet.", 404, "customer_not_found");
         return json({ ok: true }, 200, origin);
       }
       const noteDeleteMatch = path.match(/^\/api\/admin\/customers\/([a-f0-9-]+)\/notes\/([a-f0-9-]+)$/i);
       if (noteDeleteMatch && request.method === "DELETE") {
-        await requireAdmin(request, env);
+        await requireOwner(request, env);
         const result = await env.DB.prepare("DELETE FROM customer_notes WHERE id = ? AND customer_id = ?").bind(noteDeleteMatch[2], noteDeleteMatch[1]).run();
         if (!result.meta?.changes) throw new ApiError("Journalnotatet blev ikke fundet.", 404, "note_not_found");
         await env.DB.prepare("UPDATE customers SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?").bind(noteDeleteMatch[1]).run();
@@ -93,13 +134,14 @@ export default {
       }
       const invoiceMatch = path.match(/^\/api\/admin\/invoices\/([a-f0-9-]+)$/i);
       if (invoiceMatch) {
-        await requireAdmin(request, env);
         if (request.method === "DELETE") {
+          await requireOwner(request, env);
           const result = await env.DB.prepare("DELETE FROM invoices WHERE id = ?").bind(invoiceMatch[1]).run();
           if (!result.meta?.changes) throw new ApiError("Fakturaen blev ikke fundet.", 404, "invoice_not_found");
           return json({ ok: true }, 200, origin);
         }
         if (request.method === "PATCH") {
+          await requireAdmin(request, env);
           const body = await readJson(request);
           if (!["Betalt", "Sendt"].includes(body.status)) throw new ApiError("Vælg betalt eller ikke betalt.", 400, "invalid_invoice_status");
           const result = await env.DB.prepare("UPDATE invoices SET status = ? WHERE id = ?").bind(body.status, invoiceMatch[1]).run();
@@ -128,20 +170,46 @@ export default {
           JOIN customers k ON k.id = c.customer_id WHERE c.id = ?`).bind(id).first();
         return json({ contract }, 201, origin);
       }
+      if (path === "/api/admin/employment-contracts" && request.method === "GET") {
+        await requireAdmin(request, env);
+        const rows = await env.DB.prepare("SELECT * FROM employment_contracts ORDER BY created_at DESC LIMIT 500").all();
+        return json({ contracts: rows.results }, 200, origin);
+      }
+      if (path === "/api/admin/employment-contracts" && request.method === "POST") {
+        const admin = await requireAdmin(request, env), body = await readJson(request);
+        const employeeName = text(body.employee_name, 120), employeeEmail = normalizeEmail(body.employee_email);
+        const employeePhone = text(body.employee_phone, 40), jobTitle = text(body.job_title, 160);
+        const title = text(body.title, 200), contractBody = text(body.body, 12000), startDate = text(body.start_date, 10);
+        if (!employeeName || !title || !jobTitle || !contractBody || (employeeEmail && !isEmail(employeeEmail)) || (startDate && !isIsoDate(startDate))) {
+          throw new ApiError("Udfyld medarbejderens navn, stilling, titel og aftaletekst samt en gyldig e-mail/dato.", 400, "invalid_employment_contract");
+        }
+        const id = crypto.randomUUID();
+        await env.DB.prepare(`INSERT INTO employment_contracts (id, employee_name, employee_email, employee_phone, job_title, title, body, start_date, created_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, employeeName, employeeEmail, employeePhone, jobTitle, title, contractBody, startDate, admin.id).run();
+        const contract = await env.DB.prepare("SELECT * FROM employment_contracts WHERE id = ?").bind(id).first();
+        return json({ contract }, 201, origin);
+      }
+      const employmentDeleteMatch = path.match(/^\/api\/admin\/employment-contracts\/([a-f0-9-]+)$/i);
+      if (employmentDeleteMatch && request.method === "DELETE") {
+        await requireOwner(request, env);
+        const result = await env.DB.prepare("DELETE FROM employment_contracts WHERE id = ?").bind(employmentDeleteMatch[1]).run();
+        if (!result.meta?.changes) throw new ApiError("Ansættelseskontrakten blev ikke fundet.", 404, "employment_contract_not_found");
+        return json({ ok: true }, 200, origin);
+      }
       const contractMatch = path.match(/^\/api\/admin\/contracts\/([a-f0-9-]+)$/i);
       if (contractMatch && request.method === "DELETE") {
-        await requireAdmin(request, env);
+        await requireOwner(request, env);
         const result = await env.DB.prepare("DELETE FROM contracts WHERE id = ?").bind(contractMatch[1]).run();
         if (!result.meta?.changes) throw new ApiError("Kontrakten blev ikke fundet.", 404, "contract_not_found");
         return json({ ok: true }, 200, origin);
       }
       if (path === "/api/admin/settings" && request.method === "GET") {
-        await requireAdmin(request, env);
+        await requireOwner(request, env);
         const settings = await env.DB.prepare("SELECT company_name, contact_email, phone, address, cvr, vat_registered FROM business_settings WHERE id = 1").first();
         return json({ settings }, 200, origin);
       }
       if (path === "/api/admin/settings" && request.method === "PATCH") {
-        await requireAdmin(request, env);
+        await requireOwner(request, env);
         const body = await readJson(request);
         const companyName = text(body.company_name, 160);
         const contactEmail = normalizeEmail(body.contact_email);
@@ -208,12 +276,13 @@ export default {
       const threadMatch = path.match(/^\/api\/threads\/([a-f0-9-]+)(?:\/(messages|reply|status))?$/i);
       if (threadMatch) {
         const [, threadId, action] = threadMatch;
-        const admin = await requireAdmin(request, env);
         if (!action && request.method === "DELETE") {
+          await requireOwner(request, env);
           const result = await env.DB.prepare("DELETE FROM contact_threads WHERE id = ?").bind(threadId).run();
           if (!result.meta?.changes) throw new ApiError("Henvendelsen blev ikke fundet.", 404, "thread_not_found");
           return json({ ok: true }, 200, origin);
         }
+        const admin = await requireAdmin(request, env);
         const thread = await env.DB.prepare("SELECT * FROM contact_threads WHERE id = ?").bind(threadId).first();
         if (!thread) return json({ error: "Henvendelsen blev ikke fundet." }, 404, origin);
         if ((!action || action === "messages") && request.method === "GET") {
@@ -273,16 +342,17 @@ async function verifyEmail(request, env, origin) {
     await env.DB.prepare("UPDATE verification_codes SET attempts = attempts + 1 WHERE email = ?").bind(email).run();
     throw new ApiError("Koden passer ikke. Prøv igen.", 400, "invalid_code");
   }
-  const admins = (env.ADMIN_EMAILS || "").split(",").map(normalizeEmail);
-  const role = admins.includes(email) ? "admin" : "customer";
   const user = await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(email).first();
   if (!user) throw new ApiError("Kontoen blev ikke fundet. Opret den igen.", 404, "account_missing");
+  const isStaff = Boolean(await env.DB.prepare("SELECT user_id FROM staff_accounts WHERE user_id = ?").bind(user.id).first());
+  const role = isOwnerEmail(email, env) ? "admin" : isStaff ? "staff" : "customer";
   await env.DB.batch([
     env.DB.prepare("UPDATE users SET role = ?, email_verified_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?").bind(role, user.id),
     env.DB.prepare("DELETE FROM verification_codes WHERE email = ?").bind(email),
   ]);
   const token = await createSession(env, user.id);
-  return json({ token, user: { id: user.id, name: user.name, email, phone: user.phone, role } }, 200, origin);
+  const updatedUser = { ...user, role, email_verified_at: new Date().toISOString() };
+  return json({ token, user: await publicUser(updatedUser, env) }, 200, origin);
 }
 
 async function login(request, env, origin) {
@@ -294,14 +364,14 @@ async function login(request, env, origin) {
   const candidate = user ? await hashPassword(password, user.password_salt) : await hashPassword(password || "not-a-password", "dinitweb-dummy-salt");
   if (!user || candidate !== user.password_hash) throw new ApiError("E-mail eller adgangskode er forkert.", 401, "invalid_login");
   if (!user.email_verified_at) throw new ApiError("Bekræft først din e-mail. Vælg Opret bruger igen for at få en ny kode.", 403, "email_not_verified");
-  const adminEmails = (env.ADMIN_EMAILS || "").split(",").map(normalizeEmail);
-  const role = adminEmails.includes(email) ? "admin" : "customer";
+  const isStaff = Boolean(await env.DB.prepare("SELECT user_id FROM staff_accounts WHERE user_id = ?").bind(user.id).first());
+  const role = isOwnerEmail(email, env) ? "admin" : isStaff ? "staff" : "customer";
   if (user.role !== role) {
     await env.DB.prepare("UPDATE users SET role = ? WHERE id = ?").bind(role, user.id).run();
     user.role = role;
   }
   const token = await createSession(env, user.id);
-  return json({ token, user: publicUser(user) }, 200, origin);
+  return json({ token, user: await publicUser(user, env) }, 200, origin);
 }
 
 async function logout(request, env, origin) {
@@ -390,9 +460,22 @@ async function updateThreadStatus(request, env, origin, thread) {
 
 async function requireAdmin(request, env) {
   const user = await requireUser(request, env);
-  const adminEmails = (env.ADMIN_EMAILS || "").split(",").map(normalizeEmail);
-  if (user.role !== "admin" || !adminEmails.includes(user.email)) throw new ApiError("Du har ikke adgang til admin-panelet.", 403, "admin_required");
-  return user;
+  if (isOwnerEmail(user.email, env)) return { ...user, role: "admin", isOwner: true };
+  const staff = await env.DB.prepare("SELECT user_id FROM staff_accounts WHERE user_id = ?").bind(user.id).first();
+  if (!staff) throw new ApiError("Du har ikke adgang til admin-panelet.", 403, "admin_required");
+  return { ...user, role: "staff", isOwner: false };
+}
+
+async function requireOwner(request, env) {
+  const user = await requireUser(request, env);
+  if (!isOwnerEmail(user.email, env)) throw new ApiError("Kun virksomhedens ejer kan udføre denne handling.", 403, "owner_required");
+  return { ...user, role: "admin", isOwner: true };
+}
+
+function isOwnerEmail(email, env) {
+  const owner = normalizeEmail(env.OWNER_EMAIL || "");
+  const admins = (env.ADMIN_EMAILS || "").split(",").map(normalizeEmail).filter(Boolean);
+  return owner ? email === owner : admins.includes(email);
 }
 
 async function requireUser(request, env) {
@@ -497,7 +580,11 @@ function randomHex(bytes) { const value = crypto.getRandomValues(new Uint8Array(
 function randomCode() { const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000; return String(n).padStart(6, "0"); }
 function hexBytes(hex) { return Uint8Array.from(hex.match(/.{2}/g) || [], (byte) => parseInt(byte, 16)); }
 function bytesHex(bytes) { return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join(""); }
-function publicUser(user) { return { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role }; }
+async function publicUser(user, env) {
+  const isOwner = isOwnerEmail(user.email, env);
+  const staff = !isOwner && Boolean(await env.DB.prepare("SELECT user_id FROM staff_accounts WHERE user_id = ?").bind(user.id).first());
+  return { id: user.id, name: user.name, email: user.email, phone: user.phone, role: isOwner ? "admin" : staff ? "staff" : "customer", isOwner };
+}
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
 function corsHeaders(origin) {
   const headers = new Headers({ "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Authorization, Content-Type", "Access-Control-Max-Age": "86400", "Vary": "Origin", "Cache-Control": "no-store" });
