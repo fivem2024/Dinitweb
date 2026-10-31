@@ -53,7 +53,7 @@
     const title = isVerify ? "Bekræft din e-mail" : isRegister ? "Opret en bruger" : "Log ind";
     const fields = isVerify
       ? `<p class="dinit-muted">Vi har sendt en sekscifret kode til <b>${esc(state.pendingEmail)}</b>. Koden gælder i 15 minutter.</p><form class="dinit-form" id="dinitAuthForm"><label>Bekræftelseskode<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="123456"></label><button type="submit">Bekræft og fortsæt</button></form>`
-      : `<div class="dinit-brand">Dinit<em>Web</em></div><p class="dinit-muted">${isRegister ? "Opret en konto for at følge dine henvendelser og svar." : "Log ind for at se dine henvendelser eller åbne admin-panelet."}</p><form class="dinit-form" id="dinitAuthForm">${isRegister ? `<label>Dit navn<input name="name" autocomplete="name" maxlength="100" required></label><label>Telefonnummer<input name="phone" type="tel" autocomplete="tel" maxlength="40" required></label>` : ""}<label>E-mail<input name="email" type="email" autocomplete="email" maxlength="190" required value="${isRegister ? "" : esc(state.pendingEmail)}"></label><label>Adgangskode<input name="password" type="password" autocomplete="${isRegister ? "new-password" : "current-password"}" minlength="${isRegister ? "12" : "1"}" maxlength="200" required placeholder="${isRegister ? "Mindst 12 tegn" : ""}"></label><button type="submit">${isRegister ? "Opret konto og send kode" : "Log ind"}</button></form>${isRegister ? `<p class="dinit-muted" style="font-size:10px;line-height:1.6">Vi bruger dine oplysninger til at oprette og administrere din konto og dine henvendelser. Læs vores <a href="privatlivspolitik.html" target="_blank" rel="noopener">privatlivspolitik</a>.</p>` : ""}<div class="dinit-links"><button type="button" data-mode="${isRegister ? "login" : "register"}">${isRegister ? "Jeg har allerede en bruger" : "Opret en ny bruger"}</button></div>`;
+      : `<div class="dinit-brand">Dinit<em>Web</em></div><p class="dinit-muted">${isRegister ? "Opret en konto for at følge dine henvendelser og svar." : "Log ind for at se dine henvendelser eller åbne admin-panelet."}</p><form class="dinit-form" id="dinitAuthForm">${isRegister ? `<label>Dit navn<input name="name" autocomplete="name" maxlength="100" required></label><label>Telefonnummer<input name="phone" type="tel" autocomplete="tel" maxlength="40" required></label>` : ""}<label>E-mail<input name="email" type="email" autocomplete="email" maxlength="190" required value="${isRegister ? "" : esc(state.pendingEmail)}"></label><label>Adgangskode<input name="password" type="password" autocomplete="${isRegister ? "new-password" : "current-password"}" minlength="${isRegister ? "12" : "1"}" maxlength="200" required placeholder="${isRegister ? "Mindst 12 tegn" : ""}"></label><button type="submit">${isRegister ? "Opret konto og send kode" : "Log ind"}</button></form>${isRegister ? `<p class="dinit-muted dinit-privacy-note">Vi bruger dine oplysninger til at oprette og administrere din konto og dine henvendelser. Læs vores <a href="privatlivspolitik.html" target="_blank" rel="noopener">privatlivspolitik</a>.</p>` : ""}<div class="dinit-links"><button type="button" data-mode="${isRegister ? "login" : "register"}">${isRegister ? "Jeg har allerede en bruger" : "Opret en ny bruger"}</button></div>`;
     const view = portalOverlay(title, `<div class="dinit-auth-content">${fields}${message ? `<p class="dinit-error" role="alert">${esc(message)}</p>` : ""}</div>`, true);
     view.querySelector("[data-mode]")?.addEventListener("click", (event) => authView(event.currentTarget.dataset.mode));
     view.querySelector("#dinitAuthForm")?.addEventListener("submit", (event) => submitAuth(event, mode));
@@ -210,8 +210,9 @@
     try {
       const result = await api(`/api/threads/${encodeURIComponent(id)}/messages`);
       const detail = document.getElementById("adminInboxDetail");
-      detail.innerHTML = `<div class="dinit-portal-top"><div><h3>${esc(thread.subject)}</h3><p>${esc(thread.contact_name)} · ${esc(thread.contact_email)}</p></div><button class="dinit-logout" type="button" id="dinitToggleStatus">${thread.status === "closed" ? "Genåbn" : "Luk henvendelse"}</button></div><div class="dinit-contact-card"><b>Telefon:</b> ${esc(thread.contact_phone)}<br><b>E-mail:</b> ${esc(thread.contact_email)}<br><b>Modtaget:</b> ${formatDate(thread.created_at)}</div><div class="dinit-conversation">${(result.messages || []).map(messageMarkup).join("")}</div><form class="dinit-form" id="dinitAdminReply"><label>Svar kunden<textarea name="message" rows="4" maxlength="5000" required placeholder="Skriv dit svar her…"></textarea></label><button type="submit">Send svar og e-mail til kunden</button><div class="dinit-message-status" role="status"></div></form>`;
+      detail.innerHTML = `<div class="dinit-portal-top"><div><h3>${esc(thread.subject)}</h3><p>${esc(thread.contact_name)} · ${esc(thread.contact_email)}</p></div><div><button class="dinit-logout" type="button" id="dinitToggleStatus">${thread.status === "closed" ? "Genåbn" : "Luk henvendelse"}</button> <button class="dinit-logout" type="button" id="dinitDeleteThread">Slet</button></div></div><div class="dinit-contact-card"><b>Telefon:</b> ${esc(thread.contact_phone)}<br><b>E-mail:</b> ${esc(thread.contact_email)}<br><b>Modtaget:</b> ${formatDate(thread.created_at)}</div><div class="dinit-conversation">${(result.messages || []).map(messageMarkup).join("")}</div><form class="dinit-form" id="dinitAdminReply"><label>Svar kunden<textarea name="message" rows="4" maxlength="5000" required placeholder="Skriv dit svar her…"></textarea></label><button type="submit">Send svar og e-mail til kunden</button><div class="dinit-message-status" role="status"></div></form>`;
       detail.querySelector("#dinitToggleStatus").addEventListener("click", () => toggleThreadStatus(thread));
+      detail.querySelector("#dinitDeleteThread").addEventListener("click", () => deleteThread(thread));
       detail.querySelector("#dinitAdminReply").addEventListener("submit", (event) => submitAdminReply(event, thread));
       const conversation = detail.querySelector(".dinit-conversation");
       conversation.scrollTop = conversation.scrollHeight;
@@ -236,6 +237,17 @@
     try {
       await api(`/api/threads/${encodeURIComponent(thread.id)}/status`, { method: "PATCH", body: { status: thread.status === "closed" ? "open" : "closed" } });
       await loadInbox();
+    } catch (error) { toast(error.message); }
+  }
+
+  async function deleteThread(thread) {
+    if (!window.confirm(`Slet henvendelsen fra ${thread.contact_name} og hele beskedtråden? Dette kan ikke fortrydes.`)) return;
+    try {
+      await api(`/api/threads/${encodeURIComponent(thread.id)}`, { method: "DELETE" });
+      activeThread = null;
+      document.getElementById("adminInboxDetail").innerHTML = `<div class="admin-inbox-empty">Vælg en henvendelse for at læse og svare.</div>`;
+      await loadInbox();
+      toast("Henvendelsen er slettet.");
     } catch (error) { toast(error.message); }
   }
 
