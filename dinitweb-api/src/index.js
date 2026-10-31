@@ -91,6 +91,22 @@ export default {
           JOIN customers c ON c.id = i.customer_id WHERE i.id = ?`).bind(id).first();
         return json({ invoice }, 201, origin);
       }
+      const invoiceMatch = path.match(/^\/api\/admin\/invoices\/([a-f0-9-]+)$/i);
+      if (invoiceMatch) {
+        await requireAdmin(request, env);
+        if (request.method === "DELETE") {
+          const result = await env.DB.prepare("DELETE FROM invoices WHERE id = ?").bind(invoiceMatch[1]).run();
+          if (!result.meta?.changes) throw new ApiError("Fakturaen blev ikke fundet.", 404, "invoice_not_found");
+          return json({ ok: true }, 200, origin);
+        }
+        if (request.method === "PATCH") {
+          const body = await readJson(request);
+          if (!["Betalt", "Sendt"].includes(body.status)) throw new ApiError("Vælg betalt eller ikke betalt.", 400, "invalid_invoice_status");
+          const result = await env.DB.prepare("UPDATE invoices SET status = ? WHERE id = ?").bind(body.status, invoiceMatch[1]).run();
+          if (!result.meta?.changes) throw new ApiError("Fakturaen blev ikke fundet.", 404, "invoice_not_found");
+          return json({ ok: true }, 200, origin);
+        }
+      }
       if (path === "/api/admin/contracts" && request.method === "GET") {
         await requireAdmin(request, env);
         const rows = await env.DB.prepare(`SELECT c.*, k.company_name, k.contact_name, k.email FROM contracts c
@@ -112,9 +128,16 @@ export default {
           JOIN customers k ON k.id = c.customer_id WHERE c.id = ?`).bind(id).first();
         return json({ contract }, 201, origin);
       }
+      const contractMatch = path.match(/^\/api\/admin\/contracts\/([a-f0-9-]+)$/i);
+      if (contractMatch && request.method === "DELETE") {
+        await requireAdmin(request, env);
+        const result = await env.DB.prepare("DELETE FROM contracts WHERE id = ?").bind(contractMatch[1]).run();
+        if (!result.meta?.changes) throw new ApiError("Kontrakten blev ikke fundet.", 404, "contract_not_found");
+        return json({ ok: true }, 200, origin);
+      }
       if (path === "/api/admin/settings" && request.method === "GET") {
         await requireAdmin(request, env);
-        const settings = await env.DB.prepare("SELECT company_name, contact_email, phone FROM business_settings WHERE id = 1").first();
+        const settings = await env.DB.prepare("SELECT company_name, contact_email, phone, address, cvr, vat_registered FROM business_settings WHERE id = 1").first();
         return json({ settings }, 200, origin);
       }
       if (path === "/api/admin/settings" && request.method === "PATCH") {
@@ -123,10 +146,13 @@ export default {
         const companyName = text(body.company_name, 160);
         const contactEmail = normalizeEmail(body.contact_email);
         const phone = text(body.phone, 40);
+        const address = text(body.address, 300);
+        const cvr = text(body.cvr, 20);
+        const vatRegistered = body.vat_registered === "1" || body.vat_registered === 1 || body.vat_registered === true ? 1 : 0;
         if (!companyName || (contactEmail && !isEmail(contactEmail))) throw new ApiError("Udfyld et virksomhedsnavn og en gyldig e-mail.", 400, "invalid_settings");
-        await env.DB.prepare(`UPDATE business_settings SET company_name = ?, contact_email = ?, phone = ?,
-          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = 1`).bind(companyName, contactEmail, phone).run();
-        const settings = await env.DB.prepare("SELECT company_name, contact_email, phone FROM business_settings WHERE id = 1").first();
+        await env.DB.prepare(`UPDATE business_settings SET company_name = ?, contact_email = ?, phone = ?, address = ?, cvr = ?, vat_registered = ?,
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = 1`).bind(companyName, contactEmail, phone, address, cvr, vatRegistered).run();
+        const settings = await env.DB.prepare("SELECT company_name, contact_email, phone, address, cvr, vat_registered FROM business_settings WHERE id = 1").first();
         return json({ settings }, 200, origin);
       }
       const customerNotesMatch = path.match(/^\/api\/admin\/customers\/([a-f0-9-]+)\/notes$/i);
@@ -183,6 +209,11 @@ export default {
       if (threadMatch) {
         const [, threadId, action] = threadMatch;
         const admin = await requireAdmin(request, env);
+        if (!action && request.method === "DELETE") {
+          const result = await env.DB.prepare("DELETE FROM contact_threads WHERE id = ?").bind(threadId).run();
+          if (!result.meta?.changes) throw new ApiError("Henvendelsen blev ikke fundet.", 404, "thread_not_found");
+          return json({ ok: true }, 200, origin);
+        }
         const thread = await env.DB.prepare("SELECT * FROM contact_threads WHERE id = ?").bind(threadId).first();
         if (!thread) return json({ error: "Henvendelsen blev ikke fundet." }, 404, origin);
         if ((!action || action === "messages") && request.method === "GET") {
