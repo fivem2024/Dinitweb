@@ -25,12 +25,10 @@ jobs:
         uses: actions/checkout@v6
       - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - name: Prepare public website files
         run: |
           mkdir -p _site
-          cp index.html dinitweb-config.js dinitweb-portal.js dinitweb-portal.css dinitweb-logo.png dinitweb-wordmark.png _site/
+          cp index.html privatlivspolitik.html handelsbetingelser.html dinitweb-config.js dinitweb-portal.js dinitweb-portal.css dinitweb-logo.png dinitweb-wordmark.png _site/
       - name: Upload site
         uses: actions/upload-pages-artifact@v4
         with:
@@ -38,3 +36,4 @@ jobs:
       - name: Deploy site
         id: deployment
         uses: actions/deploy-pages@v4
+
