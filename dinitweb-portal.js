@@ -86,7 +86,7 @@
   }
 
   async function routeUserAfterAuth() {
-    if (state.user?.role === "admin") {
+    if (state.user?.role === "admin" || state.user?.role === "staff") {
       document.getElementById("dinitPortalOverlay")?.remove();
       showAdmin();
       showInbox();
@@ -210,9 +210,9 @@
     try {
       const result = await api(`/api/threads/${encodeURIComponent(id)}/messages`);
       const detail = document.getElementById("adminInboxDetail");
-      detail.innerHTML = `<div class="dinit-portal-top"><div><h3>${esc(thread.subject)}</h3><p>${esc(thread.contact_name)} · ${esc(thread.contact_email)}</p></div><div><button class="dinit-logout" type="button" id="dinitToggleStatus">${thread.status === "closed" ? "Genåbn" : "Luk henvendelse"}</button> <button class="dinit-logout" type="button" id="dinitDeleteThread">Slet</button></div></div><div class="dinit-contact-card"><b>Telefon:</b> ${esc(thread.contact_phone)}<br><b>E-mail:</b> ${esc(thread.contact_email)}<br><b>Modtaget:</b> ${formatDate(thread.created_at)}</div><div class="dinit-conversation">${(result.messages || []).map(messageMarkup).join("")}</div><form class="dinit-form" id="dinitAdminReply"><label>Svar kunden<textarea name="message" rows="4" maxlength="5000" required placeholder="Skriv dit svar her…"></textarea></label><button type="submit">Send svar og e-mail til kunden</button><div class="dinit-message-status" role="status"></div></form>`;
+      detail.innerHTML = `<div class="dinit-portal-top"><div><h3>${esc(thread.subject)}</h3><p>${esc(thread.contact_name)} · ${esc(thread.contact_email)}</p></div><div><button class="dinit-logout" type="button" id="dinitToggleStatus">${thread.status === "closed" ? "Genåbn" : "Luk henvendelse"}</button>${state.user?.isOwner ? ' <button class="dinit-logout" type="button" id="dinitDeleteThread">Slet</button>' : ""}</div></div><div class="dinit-contact-card"><b>Telefon:</b> ${esc(thread.contact_phone)}<br><b>E-mail:</b> ${esc(thread.contact_email)}<br><b>Modtaget:</b> ${formatDate(thread.created_at)}</div><div class="dinit-conversation">${(result.messages || []).map(messageMarkup).join("")}</div><form class="dinit-form" id="dinitAdminReply"><label>Svar kunden<textarea name="message" rows="4" maxlength="5000" required placeholder="Skriv dit svar her…"></textarea></label><button type="submit">Send svar og e-mail til kunden</button><div class="dinit-message-status" role="status"></div></form>`;
       detail.querySelector("#dinitToggleStatus").addEventListener("click", () => toggleThreadStatus(thread));
-      detail.querySelector("#dinitDeleteThread").addEventListener("click", () => deleteThread(thread));
+      detail.querySelector("#dinitDeleteThread")?.addEventListener("click", () => deleteThread(thread));
       detail.querySelector("#dinitAdminReply").addEventListener("submit", (event) => submitAdminReply(event, thread));
       const conversation = detail.querySelector(".dinit-conversation");
       conversation.scrollTop = conversation.scrollHeight;
@@ -276,7 +276,8 @@
 
   installInbox();
   window.showAdmin = () => {
-    if (state.user?.role !== "admin") { window.openDinitPortal(); return; }
+    if (state.user?.role !== "admin" && state.user?.role !== "staff") { window.openDinitPortal(); return; }
+    window.dinitCurrentUser = state.user;
     document.getElementById("publicSite")?.classList.add("hidden");
     document.getElementById("adminApp")?.classList.add("active");
     history.replaceState(null, "", "#admin");
@@ -287,7 +288,7 @@
   if (token) {
     api("/api/me").then(async ({ user }) => {
       state.user = user;
-      if (location.hash === "#admin" && user.role === "admin") { showAdmin(); await showInbox(); }
+      if (location.hash === "#admin" && (user.role === "admin" || user.role === "staff")) { showAdmin(); await showInbox(); }
       else if (location.hash === "#admin") await customerPortal();
       else if (location.hash === "#portal") await routeUserAfterAuth();
     }).catch(() => { clearSession(); if (location.hash === "#admin") showSite(); });
