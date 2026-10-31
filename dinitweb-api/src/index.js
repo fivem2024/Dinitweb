@@ -50,6 +50,68 @@ export default {
         const customer = await env.DB.prepare("SELECT * FROM customers WHERE id = ?").bind(id).first();
         return json({ customer, created_by: admin.name }, 201, origin);
       }
+      const customerDeleteMatch = path.match(/^\/api\/admin\/customers\/([a-f0-9-]+)$/i);
+      if (customerDeleteMatch && request.method === "DELETE") {
+        await requireAdmin(request, env);
+        const result = await env.DB.prepare("DELETE FROM customers WHERE id = ?").bind(customerDeleteMatch[1]).run();
+        if (!result.meta?.changes) throw new ApiError("Kundeprofilen blev ikke fundet.", 404, "customer_not_found");
+        return json({ ok: true }, 200, origin);
+      }
+      const noteDeleteMatch = path.match(/^\/api\/admin\/customers\/([a-f0-9-]+)\/notes\/([a-f0-9-]+)$/i);
+      if (noteDeleteMatch && request.method === "DELETE") {
+        await requireAdmin(request, env);
+        const result = await env.DB.prepare("DELETE FROM customer_notes WHERE id = ? AND customer_id = ?").bind(noteDeleteMatch[2], noteDeleteMatch[1]).run();
+        if (!result.meta?.changes) throw new ApiError("Journalnotatet blev ikke fundet.", 404, "note_not_found");
+        await env.DB.prepare("UPDATE customers SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?").bind(noteDeleteMatch[1]).run();
+        return json({ ok: true }, 200, origin);
+      }
+      if (path === "/api/admin/invoices" && request.method === "GET") {
+        await requireAdmin(request, env);
+        const rows = await env.DB.prepare(`SELECT i.*, c.company_name, c.contact_name, c.email, c.phone
+          FROM invoices i JOIN customers c ON c.id = i.customer_id ORDER BY i.created_at DESC LIMIT 500`).all();
+        return json({ invoices: rows.results }, 200, origin);
+      }
+      if (path === "/api/admin/invoices" && request.method === "POST") {
+        await requireAdmin(request, env);
+        const body = await readJson(request);
+        const customerId = text(body.customer_id, 64);
+        const description = text(body.description, 500);
+        const amount = Number(body.amount_dkk);
+        const dueDate = text(body.due_date, 10);
+        const issueDate = text(body.issue_date, 10) || new Date().toISOString().slice(0, 10);
+        if (!customerId || !description || !Number.isSafeInteger(amount) || amount < 1 || !isIsoDate(dueDate) || !isIsoDate(issueDate) || dueDate < issueDate) {
+          throw new ApiError("Vælg en kunde, udfyld beskrivelsen, beløbet og gyldige fakturadatoer.", 400, "invalid_invoice");
+        }
+        if (!await env.DB.prepare("SELECT id FROM customers WHERE id = ?").bind(customerId).first()) throw new ApiError("Kunden blev ikke fundet.", 404, "customer_not_found");
+        const id = crypto.randomUUID();
+        const invoiceNumber = `DW-${new Date().getFullYear()}-${randomHex(4).toUpperCase()}`;
+        await env.DB.prepare(`INSERT INTO invoices (id, invoice_number, customer_id, description, amount_dkk, issue_date, due_date)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(id, invoiceNumber, customerId, description, amount, issueDate, dueDate).run();
+        const invoice = await env.DB.prepare(`SELECT i.*, c.company_name, c.contact_name, c.email, c.phone FROM invoices i
+          JOIN customers c ON c.id = i.customer_id WHERE i.id = ?`).bind(id).first();
+        return json({ invoice }, 201, origin);
+      }
+      if (path === "/api/admin/contracts" && request.method === "GET") {
+        await requireAdmin(request, env);
+        const rows = await env.DB.prepare(`SELECT c.*, k.company_name, k.contact_name, k.email FROM contracts c
+          JOIN customers k ON k.id = c.customer_id ORDER BY c.created_at DESC LIMIT 500`).all();
+        return json({ contracts: rows.results }, 200, origin);
+      }
+      if (path === "/api/admin/contracts" && request.method === "POST") {
+        await requireAdmin(request, env);
+        const body = await readJson(request);
+        const customerId = text(body.customer_id, 64);
+        const title = text(body.title, 200);
+        const contractBody = text(body.body, 12000);
+        const startDate = text(body.start_date, 10);
+        if (!customerId || !title || !contractBody || (startDate && !isIsoDate(startDate))) throw new ApiError("Vælg en kunde, og udfyld kontrakttitel og indhold.", 400, "invalid_contract");
+        if (!await env.DB.prepare("SELECT id FROM customers WHERE id = ?").bind(customerId).first()) throw new ApiError("Kunden blev ikke fundet.", 404, "customer_not_found");
+        const id = crypto.randomUUID();
+        await env.DB.prepare("INSERT INTO contracts (id, customer_id, title, body, start_date) VALUES (?, ?, ?, ?, ?)").bind(id, customerId, title, contractBody, startDate).run();
+        const contract = await env.DB.prepare(`SELECT c.*, k.company_name, k.contact_name, k.email FROM contracts c
+          JOIN customers k ON k.id = c.customer_id WHERE c.id = ?`).bind(id).first();
+        return json({ contract }, 201, origin);
+      }
       if (path === "/api/admin/settings" && request.method === "GET") {
         await requireAdmin(request, env);
         const settings = await env.DB.prepare("SELECT company_name, contact_email, phone FROM business_settings WHERE id = 1").first();
@@ -398,6 +460,7 @@ async function readJson(request) {
 function text(value, max) { return String(value ?? "").trim().slice(0, max); }
 function normalizeEmail(value) { return String(value || "").trim().toLowerCase(); }
 function isEmail(value) { return /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,30}$/.test(value); }
+function isIsoDate(value) { if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false; const date = new Date(value + "T00:00:00Z"); return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value; }
 function bearerToken(request) { const header = request.headers.get("Authorization") || ""; return header.startsWith("Bearer ") ? header.slice(7).trim() : ""; }
 function randomHex(bytes) { const value = crypto.getRandomValues(new Uint8Array(bytes)); return bytesHex(value); }
 function randomCode() { const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000; return String(n).padStart(6, "0"); }
@@ -406,7 +469,7 @@ function bytesHex(bytes) { return [...bytes].map((byte) => byte.toString(16).pad
 function publicUser(user) { return { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role }; }
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
 function corsHeaders(origin) {
-  const headers = new Headers({ "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS", "Access-Control-Allow-Headers": "Authorization, Content-Type", "Access-Control-Max-Age": "86400", "Vary": "Origin", "Cache-Control": "no-store" });
+  const headers = new Headers({ "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Authorization, Content-Type", "Access-Control-Max-Age": "86400", "Vary": "Origin", "Cache-Control": "no-store" });
   if (origin) headers.set("Access-Control-Allow-Origin", origin);
   return headers;
 }
