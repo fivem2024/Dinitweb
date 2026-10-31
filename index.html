@@ -137,6 +137,28 @@
 #adminApp .contract-details pre{max-width:460px;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.65;color:#c1d1e3}
 #adminApp #view-invoices .table,#adminApp #view-contracts .table{min-width:760px}
 @media(max-width:600px){#adminApp .profile-actions{align-items:flex-end;flex-direction:column}.modal{max-height:90vh;overflow:auto}}
+/* Employment contracts: match the dark admin customer workspace */
+#adminApp #view-employment-contracts .employment-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr);gap:18px;align-items:start}
+#adminApp #view-employment-contracts .employment-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+#adminApp #view-employment-contracts .employment-form>label{display:grid;grid-template-columns:minmax(0,1fr);align-content:start;gap:8px;min-width:0;color:#b8c9db;font-size:12px;font-weight:600}
+#adminApp #view-employment-contracts .employment-form input,
+#adminApp #view-employment-contracts .employment-form select,
+#adminApp #view-employment-contracts .employment-form textarea{box-sizing:border-box;display:block;width:100%;min-width:0;max-width:100%;margin:0;padding:12px 13px;border:1px solid #294158;border-radius:9px;background:#081522;color:#edf5ff;font:500 13px "DM Sans",sans-serif;color-scheme:dark;box-shadow:inset 0 1px 0 rgba(255,255,255,.025);transition:border-color .18s,box-shadow .18s}
+#adminApp #view-employment-contracts .employment-form input,
+#adminApp #view-employment-contracts .employment-form select{height:44px}
+#adminApp #view-employment-contracts .employment-form textarea{min-height:190px;resize:vertical;line-height:1.6}
+#adminApp #view-employment-contracts .employment-form input::placeholder,
+#adminApp #view-employment-contracts .employment-form textarea::placeholder{color:#71869e;opacity:1}
+#adminApp #view-employment-contracts .employment-form input:focus,
+#adminApp #view-employment-contracts .employment-form select:focus,
+#adminApp #view-employment-contracts .employment-form textarea:focus{outline:0;border-color:#168bff;box-shadow:0 0 0 3px rgba(22,139,255,.16)}
+#adminApp #view-employment-contracts .employment-form .wide{grid-column:1/-1}
+#adminApp #view-employment-contracts .employment-form .empty-note{margin:0;align-self:center;color:#9bb5d0;line-height:1.6;font-weight:400}
+#adminApp #view-employment-contracts .employment-form button.wide{justify-self:start;min-height:42px;padding:0 17px}
+#adminApp #view-employment-contracts .employment-list{display:grid;gap:12px}
+#adminApp #view-employment-contracts .employment-grid>.card{min-width:0}
+@media(max-width:1050px){#adminApp #view-employment-contracts .employment-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:640px){#adminApp #view-employment-contracts .employment-form{grid-template-columns:minmax(0,1fr)}#adminApp #view-employment-contracts .employment-form .wide{grid-column:auto}#adminApp #view-employment-contracts .employment-form button.wide{width:100%}}
 </style>
 <link rel="stylesheet" href="dinitweb-portal.css">
 </head>
@@ -222,6 +244,6 @@ document.getElementById('adminDate').textContent=new Intl.DateTimeFormat('da-DK'
 </script>
 <script src="dinitweb-config.js"></script>
 <script src="dinitweb-portal.js"></script>
-<script src="dinitweb-admin.js?v=employment-pages-static-20261031"></script>
+<script src="dinitweb-admin.js?v=employment-contract-design-20261031"></script>
 </body></html>
 
