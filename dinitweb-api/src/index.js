@@ -424,10 +424,9 @@ async function replyToContact(request, env, origin, admin, thread) {
   ]);
   const notified = await sendMailSafe(env, {
     to: thread.contact_email,
-    replyTo: env.OWNER_EMAIL,
     subject: `Svar fra DinitWeb: ${thread.subject}`,
-    text: `Hej ${thread.contact_name}\n\n${message}\n\nDu kan svare direkte på denne e-mail.\n\nVenlig hilsen\nDinitWeb`,
-    html: `<p>Hej ${escapeHtml(thread.contact_name)},</p><p>${escapeHtml(message).replace(/\n/g, "<br>")}</p><p>Du kan svare direkte på denne e-mail.</p><p>Venlig hilsen<br>DinitWeb</p>`,
+    text: `Hej ${thread.contact_name}\n\n${message}\n\nDenne e-mail kan ikke besvares. Log ind på https://dinitweb.dk/#konto, åbn Kundeportal, og svar på din henvendelse dér.\n\nVenlig hilsen\nDinitWeb`,
+    html: `<p>Hej ${escapeHtml(thread.contact_name)},</p><p>${escapeHtml(message).replace(/\n/g, "<br>")}</p><p><strong>Denne e-mail kan ikke besvares.</strong> Log ind på <a href="https://dinitweb.dk/#konto">DinitWebs hjemmeside</a>, åbn Kundeportal, og svar på din henvendelse dér.</p><p>Venlig hilsen<br>DinitWeb</p>`,
   });
   return json({ ok: true, notified, message: notified ? "Svaret er sendt, og kunden har fået en e-mail." : "Svaret er gemt, men e-mailen kunne ikke sendes." }, 201, origin);
 }
