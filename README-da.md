@@ -8,7 +8,7 @@ Brugere kan oprette konto med e-mailbekræftelse. Adminadgang gives kun til veri
 
 ## Trin-for-trin opsætning
 
-Dette er en deployklar startpakke, men den er endnu ikke koblet til et live GitHub-repository eller Cloudflare-projekt. Du skal bruge dine GitHub- og Cloudflare-konti, Node.js og et domæne, som Cloudflare kan sende e-mail fra.
+Projektet ligger i GitHub-repositoryet Dinitweb og bruger Cloudflare Pages/Workers og D1. Du skal bruge dine GitHub- og Cloudflare-konti samt Node.js for at vedligeholde det.
 
 ### A. Læg hjemmesiden i GitHub
 
@@ -84,16 +84,16 @@ Gem filen, push den til `main`, og vent på at **Actions → Deploy DinitWeb to 
 
 16. Send en prøvehenvendelse fra kontaktformularen med en anden e-mailadresse. Du bør se bekræftelsen på hjemmesiden, modtage en notifikation i `OWNER_EMAIL`-indbakken og kunne svare under **Henvendelser**. Kundens e-mail får dit svar.
 
-### D. Aktivér kundekartotek og journal
+### D. Kundekartotek, journal, fakturaer og kontrakter
 
-Admin-panelet bruger Cloudflare D1 til kundekartotek, kundeprofiler, journalnotater og virksomhedsindstillinger. Den nye migration tilføjer tabellerne uden at slette konti eller henvendelser. Kør den fra `outputs/dinitweb-api/` (eller den tilsvarende API-mappe i din GitHub-kopi):
+Admin-panelet bruger Cloudflare D1 til kundekartotek, kundeprofiler, journalnotater og virksomhedsindstillinger. Migration 0002_admin_crm.sql opretter kundekartoteket; migration 0003_billing_contracts.sql tilføjer fakturakladder og kontraktudkast uden at slette konti, henvendelser eller eksisterende kundedata. Kør den fra `outputs/dinitweb-api/` (eller den tilsvarende API-mappe i din GitHub-kopi):
 
 ```powershell
 npx wrangler d1 migrations apply dinitweb --remote
 npx wrangler deploy
 ```
 
-Push derefter hjemmesidefilerne til GitHub, så Pages udgiver adminændringerne. Admin-menuen viser ikke længere eksempelprojekter eller eksempel-fakturaer. Kundejournalen ligger på den enkelte kundeprofil, og **Indstillinger** gemmer virksomhedsnavn, kontakt-e-mail og telefon i D1. Der er ingen eksempel-kunder indlæst i det nye kundekartotek.
+Push derefter hjemmesidefilerne til GitHub, så Pages udgiver adminændringerne. Admin-menuen giver adgang til **Kunder**, **Fakturaer** og **Kontrakter**. Journalnotater oprettes på en kundeprofil. Fakturaer og kontrakter gemmes som udkast og knyttes til kunden; funktionerne sender ikke fakturaer eller indhenter underskrifter. Før fakturaer bruges over for kunder, skal du kontrollere moms, CVR og øvrige fakturaoplysninger. En administrator kan slette et journalnotat eller en kunde. Sletning af en kunde fjerner også vedkommendes journalnotater, fakturaer og kontraktudkast.
 
 ## Sikkerhed og funktioner
 
@@ -103,7 +103,7 @@ Push derefter hjemmesidefilerne til GitHub, så Pages udgiver adminændringerne.
 - API'et begrænser CORS til de origins, der står i `ALLOWED_ORIGINS`, og har enkel rate limiting på formular og login.
 - Kontaktformularen kan bruges uden konto. Hvis en bruger er logget ind, knyttes henvendelsen til kontoen, så samtalen kan ses i kundeportalen.
 - Kundekartotek, profiler, journalnotater og virksomhedsindstillinger gemmes i D1 efter migration `0002_admin_crm.sql`.
-- Kundehistorik slettes først, hvis en administrator selv sletter D1-data; installation af migrationen rydder ikke konti eller henvendelser.
+- Sletning af kunde fra admin-panelet fjerner den tilhørende kundehistorik via databasekaskader. Sletning kræver bekræftelse.
 
 Cloudflare D1 bruger versionsstyrede SQL-migrationer; behold migrationerne i `dinitweb-api/migrations/` fremover.
 
