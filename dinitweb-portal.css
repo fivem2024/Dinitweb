@@ -75,5 +75,25 @@
 .admin-inbox-detail .dinit-form label{color:#647168}
 .admin-inbox-empty{height:100%;display:grid;place-items:center;text-align:center;color:#8b958d;font-size:11px;line-height:1.7;padding:24px}
 .dinit-admin-logout{border:1px solid #dce5de;background:#fff;color:#4f6457;border-radius:5px;padding:7px 10px;font-size:10px;cursor:pointer}
+/* Keep the admin inbox consistent with the dark navy admin theme. */
+#adminApp .admin-inbox-list,#adminApp .admin-inbox-detail{background:#0b192a;border-color:#1b3550;color:#e8f1fc;box-shadow:0 12px 30px #0002}
+#adminApp .admin-inbox-list h3,#adminApp .admin-inbox-detail h3{color:#eaf3fd}
+#adminApp .admin-inbox-row{background:#081525;border-color:#1b3550;color:#e8f1fc}
+#adminApp .admin-inbox-row:hover,#adminApp .admin-inbox-row.selected{background:#102843;border-color:#168bfa}
+#adminApp .admin-inbox-row strong{color:#eaf3fd}
+#adminApp .admin-inbox-row small{color:#91a7bf}
+#adminApp .admin-inbox-row p{color:#b2c2d4}
+#adminApp .admin-inbox-list .empty-note{color:#91a7bf}
+#adminApp .admin-inbox-detail .dinit-contact-card{background:#081525;border-color:#203a55;color:#c5d3e3}
+#adminApp .admin-inbox-detail .dinit-contact-card b{color:#eaf3fd}
+#adminApp .admin-inbox-detail .dinit-message{background:#0a1a2c;border-color:#203a55}
+#adminApp .admin-inbox-detail .dinit-message.admin{background:#0c2540;border-color:#1c568b}
+#adminApp .admin-inbox-detail .dinit-message strong{color:#e4f0ff}
+#adminApp .admin-inbox-detail .dinit-message p{color:#c1d0e1}
+#adminApp .admin-inbox-detail .dinit-form textarea{background:#071424;color:#edf4ff;border-color:#29415d}
+#adminApp .admin-inbox-detail .dinit-form label{color:#bfd0e3}
+#adminApp .admin-inbox-empty{color:#91a7bf}
+#adminApp .dinit-admin-logout{border-color:#29415d;background:#0d2034;color:#d9e6f5}
 @media(max-width:700px){#publicSite .contact-form-layout{grid-template-columns:1fr;gap:22px}#publicSite .contact-form{padding:18px;gap:11px}.dinit-dialog-body{padding:17px}.admin-inbox{grid-template-columns:1fr}.admin-inbox-items{max-height:250px}.admin-inbox-detail .dinit-conversation{max-height:300px}}
 @media(max-width:430px){#publicSite .contact-form{grid-template-columns:1fr}#publicSite .contact-form label:nth-of-type(4),#publicSite .contact-form>button,#publicSite .form-status{grid-column:1}.dinit-portal-top{align-items:flex-start}.dinit-dialog-head{padding:14px 16px}}
+
