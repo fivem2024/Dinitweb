@@ -25,6 +25,27 @@
   #view-staff .staff-list{display:grid;gap:10px;margin-top:16px}.staff-record{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid #213951;background:#0d1c2c;border-radius:10px;padding:14px}.staff-record b,.staff-record small{display:block}.staff-record small{color:#9eb2c8;margin-top:4px}
   @media(max-width:900px){#view-employment-contracts .employment-grid{grid-template-columns:1fr}}
   `;
+  style.textContent += `
+  #adminApp #view-staff>.card{padding:24px;background:#0d1c2b;border:1px solid #203a55;border-radius:10px;color:#edf5ff}
+  #adminApp #view-staff .staff-note{margin:0 0 24px;padding:16px 18px;background:#102238;border:1px solid #29435f;border-radius:8px;color:#a9bdd2;font:400 13px/1.7 Arial,sans-serif}
+  #adminApp #view-staff form.staff-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;max-width:800px}
+  #adminApp #view-staff form.staff-form>label{display:flex;flex-direction:column;gap:8px;min-width:0;margin:0;color:#c4d4e7;font:600 12px/1.5 Arial,sans-serif}
+  #adminApp #view-staff form.staff-form input{display:block;box-sizing:border-box;width:100%;min-width:0;min-height:44px;margin:0;padding:11px 13px;border:1px solid #29435f;border-radius:7px;background:#071321;color:#eef5fc;font:400 13px/1.5 Arial,sans-serif;color-scheme:dark}
+  #adminApp #view-staff form.staff-form input:focus{outline:none;border-color:#168bfa;box-shadow:0 0 0 3px #168bfa24}
+  #adminApp #view-staff form.staff-form input::placeholder{color:#7188a2}
+  #adminApp #view-staff form.staff-form>.wide{grid-column:1/-1}
+  #adminApp #view-staff form.staff-form>button{justify-self:start;min-height:42px;padding:11px 18px;border:0;border-radius:7px;background:#087cf0;color:white;font:700 12px/1.5 Arial,sans-serif;cursor:pointer}
+  #adminApp #view-staff .staff-list{margin-top:28px;padding-top:22px;border-top:1px solid #29435f;display:grid;gap:12px}
+  #adminApp #view-staff .staff-record{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px;background:#102238;border:1px solid #29435f;border-radius:8px;font-size:13px}
+  #adminApp #view-staff .staff-record small{font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+  #adminApp #view-staff .empty-note{font-size:12px;line-height:1.6;color:#9eb1c7}
+  #adminApp .employment-preview{grid-column:1/-1;padding:18px;background:#071321;border:1px solid #29435f;border-radius:8px;min-width:0}
+  #adminApp .employment-preview[hidden]{display:none}
+  #adminApp .employment-preview h3{margin:0;color:#edf5ff;font-size:15px}
+  #adminApp .employment-preview p{margin:8px 0 16px;color:#9eb1c7;font-size:12px;line-height:1.6}
+  #adminApp .employment-preview pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:#c4d4e7;font:400 13px/1.8 Arial,sans-serif}
+  @media(max-width:600px){#adminApp #view-staff form.staff-form{grid-template-columns:1fr}#adminApp #view-staff>.card{padding:17px}#adminApp #view-staff .staff-record{align-items:flex-start;flex-direction:column}}
+  `;
   document.head.append(style);
 
   const sidebar = $('.sidebar');
@@ -111,6 +132,19 @@
 
   const form = $('#employmentForm');
   const mode = $('#employmentMode');
+  const preview = document.createElement('section');
+  preview.className = 'employment-preview wide';
+  preview.innerHTML = '<h3>Standardtekst til ansættelsesaftalen</h3><p>Teksten opdateres med oplysningerne ovenfor og gemmes i kontrakten.</p><pre></pre>';
+  form?.querySelector('[type="submit"]')?.before(preview);
+  const updatePreview = () => {
+    preview.hidden = mode?.value === 'custom';
+    if (form && !preview.hidden) preview.querySelector('pre').textContent = standardEmploymentBody(new FormData(form)).replaceAll('\\n', '\n').replace(/^## /gm, '');
+  };
+  form?.addEventListener('input', updatePreview);
+  mode?.addEventListener('change', updatePreview);
+  document.addEventListener('dinit:admin-ready', updatePreview);
+  form?.addEventListener('reset', () => setTimeout(updatePreview, 0));
+  updatePreview();
   const setMode = () => { const custom = mode?.value === 'custom'; const body = $('#employmentBody'); const hint = $('#employmentHint'); if (body) { body.required = custom; body.placeholder = custom ? 'Skriv hele din egen aftaletekst.' : 'Tilføj særlige vilkår, der skal med i standardudkastet.'; } if (hint) hint.hidden = custom; };
   mode?.addEventListener('change', setMode); setMode();
   $('#employmentNew')?.addEventListener('click', () => { form?.reset(); setMode(); form?.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
@@ -133,4 +167,3 @@
     if (deleteContract && owner) { if (!confirm('Slet denne ansættelseskontrakt permanent?')) return; try { await api(`/api/admin/employment-contracts/${encodeURIComponent(deleteContract.dataset.employmentDelete)}`, { method: 'DELETE' }); await window.loadEmploymentContracts(); } catch (error) { alert(error.message); } }
   });
 })();
-
