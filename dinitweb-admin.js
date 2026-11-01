@@ -91,6 +91,52 @@
     settingsView.before(staffView);
   }
 
+  const staffView = $('#view-staff');
+  const staffForm = $('#staffForm');
+  let staffRecords = [];
+  let staffDialog;
+  if (staffView && staffForm) {
+    staffDialog = document.createElement('dialog');
+    staffDialog.id = 'staffDialog';
+    staffDialog.className = 'modal';
+    staffDialog.innerHTML = '<h2>Opret medarbejder</h2><p>Giv adgang til kunder, journaler, kontrakter, fakturaer og henvendelser.</p>';
+    staffForm.className = 'form-grid';
+    staffForm.querySelectorAll('label').forEach(label => label.classList.add('field'));
+    const submit = staffForm.querySelector('[type="submit"]');
+    const actions = document.createElement('div');
+    actions.className = 'modal-actions wide';
+    const cancel = document.createElement('button');
+    cancel.type = 'button'; cancel.className = 'action light'; cancel.textContent = 'Annuller';
+    cancel.addEventListener('click', () => staffDialog.close());
+    actions.append(cancel, submit);
+    staffForm.append(actions);
+    staffDialog.append(staffForm);
+    $('#adminApp').append(staffDialog);
+    staffView.innerHTML = '<div class="page-title"><div><div class="admin-eyebrow">Medarbejderkartotek</div><h1>Medarbejdere</h1><p>Administrer medarbejdernes adgang til admin-panelet.</p></div><button class="action" id="staffNew" type="button">＋ Opret medarbejder</button></div><div class="card"><div class="toolbar" style="justify-content:space-between;align-items:center"><input id="staffSearch" type="search" placeholder="Søg efter navn eller e-mail…" aria-label="Søg medarbejdere"><span id="staffCount" style="font-size:11px;color:#9eb1c7">0 medarbejdere</span></div><div style="overflow-x:auto"><table class="table"><thead><tr><th>Medarbejder</th><th>Telefon</th><th>Adgang</th><th>Status</th><th></th></tr></thead><tbody id="staffList"><tr><td colspan="5">Henter medarbejdere…</td></tr></tbody></table></div></div><p class="staff-help">Medarbejdere kan oprette og besvare. Kun ejeren kan slette og administrere adgang. Nye medarbejdere opretter en bruger med den samme e-mailadresse og bekræfter deres e-mail.</p>';
+    $('#staffNew').addEventListener('click', () => { staffForm.reset(); staffDialog.showModal(); });
+    $('#staffSearch').addEventListener('input', () => renderStaff());
+    staffDialog.addEventListener('click', event => { if (event.target === staffDialog) { const rect = staffDialog.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) staffDialog.close(); } });
+    style.textContent += `
+    #adminApp #view-staff .staff-help{margin:18px 0;color:#9eb1c7;font-size:12px;line-height:1.7;max-width:800px}
+    #adminApp #view-staff #staffList{display:table-row-group;margin:0;padding:0;border:0}
+    #adminApp #staffDialog{box-sizing:border-box;background:#0d1c2b;border:1px solid #29435f;color:#edf5ff;max-height:90vh;overflow:auto}
+    #staffDialog::backdrop{background:#06111fcc;backdrop-filter:blur(3px)}
+    #adminApp #staffDialog h2{color:#edf5ff}
+    #adminApp #staffDialog>p{color:#9eb1c7;font-size:12px;line-height:1.6}
+    #adminApp #staffDialog .field{color:#b8c9db}
+    #adminApp #staffDialog input{box-sizing:border-box;width:100%;min-width:0;background:#071321;color:#eef5fc;border:1px solid #29435f;border-radius:6px;padding:11px;font-size:12px}
+    #adminApp #staffDialog .wide{grid-column:1/-1}
+    #adminApp #staffDialog input:focus{outline:2px solid #168bfa;outline-offset:1px}
+    #adminApp #view-staff .table td{vertical-align:middle}
+    `;
+  }
+  const renderStaff = () => {
+    const list = $('#staffList'); if (!list) return;
+    const term = ($('#staffSearch')?.value || '').trim().toLocaleLowerCase('da-DK');
+    const records = staffRecords.filter(s => `${s.name} ${s.email} ${s.phone || ''}`.toLocaleLowerCase('da-DK').includes(term));
+    if ($('#staffCount')) $('#staffCount').textContent = `${records.length} ${records.length === 1 ? 'medarbejder' : 'medarbejdere'}`;
+    list.innerHTML = records.length ? records.map(s => `<tr><td class="client-cell"><b>${esc(s.name)}</b><small>${esc(s.email)}</small></td><td>${esc(s.phone || '—')}</td><td><span class="badge blue">Medarbejder</span></td><td><span class="badge">${s.email_verified_at ? 'Konto bekræftet' : 'Afventer bekræftelse'}</span></td><td>${owner ? `<button class="staff-remove" type="button" data-staff-remove="${esc(s.id)}">Fjern adgang</button>` : ''}</td></tr>`).join('') : `<tr><td colspan="5" class="empty-note">${term ? 'Ingen medarbejdere matcher søgningen.' : 'Ingen medarbejdere endnu. Klik på Opret medarbejder for at komme i gang.'}</td></tr>`;
+  };
   let owner = false;
   const guardUi = () => {
     owner = Boolean(window.dinitCurrentUser?.isOwner);
@@ -126,8 +172,8 @@
   };
   window.loadStaff = async () => {
     const list = $('#staffList'); if (!list || !owner) return;
-    try { const result = await api('/api/admin/staff'); const records = result.staff || []; list.innerHTML = records.length ? records.map(s => `<article class="staff-record"><div><b>${esc(s.name)}</b><small>${esc(s.email)}${s.phone ? ` · ${esc(s.phone)}` : ''} · ${s.email_verified_at ? 'Konto bekræftet' : 'Afventer konto/bekræftelse'}</small></div><button class="staff-remove" type="button" data-staff-remove="${esc(s.id)}">Fjern adgang</button></article>`).join('') : '<p class="empty-note">Du har ikke oprettet medarbejdere endnu.</p>'; }
-    catch (error) { list.innerHTML = `<p class="empty-note">${esc(error.message)}</p>`; }
+    try { const result = await api('/api/admin/staff'); staffRecords = result.staff || []; renderStaff(); }
+    catch (error) { list.innerHTML = `<tr><td colspan="5" class="empty-note">${esc(error.message)}</td></tr>`; }
   };
 
   const form = $('#employmentForm');
@@ -157,7 +203,7 @@
     catch (error) { alert(error.message); }
     finally { submit.disabled = false; }
   });
-  $('#staffForm')?.addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget, button = form.querySelector('[type="submit"]'); button.disabled = true; try { const result = await api('/api/admin/staff', { method: 'POST', body: Object.fromEntries(new FormData(form)) }); alert(result.message || 'Medarbejderen er oprettet.'); form.reset(); await window.loadStaff(); } catch (error) { alert(error.message); } finally { button.disabled = false; } });
+  $('#staffForm')?.addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget, button = form.querySelector('[type="submit"]'); button.disabled = true; try { const result = await api('/api/admin/staff', { method: 'POST', body: Object.fromEntries(new FormData(form)) }); staffDialog?.close(); alert(result.message || 'Medarbejderen er oprettet.'); form.reset(); await window.loadStaff(); } catch (error) { alert(error.message); } finally { button.disabled = false; } });
   document.addEventListener('click', async (event) => {
     const pdf = event.target.closest('[data-employment-pdf]');
     if (pdf) { const record = $('#employmentList')?._records?.find(c => c.id === pdf.dataset.employmentPdf); if (record) contractDocument(record); }
