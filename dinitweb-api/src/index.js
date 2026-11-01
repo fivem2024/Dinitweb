@@ -367,7 +367,7 @@ async function verifyEmail(request, env, origin) {
   const isStaff = Boolean(await env.DB.prepare("SELECT user_id FROM staff_accounts WHERE user_id = ?").bind(user.id).first());
   const role = isOwnerEmail(email, env) ? "admin" : isStaff ? "staff" : "customer";
   await env.DB.batch([
-    env.DB.prepare("UPDATE users SET role = ?, email_verified_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?").bind(role, user.id),
+    env.DB.prepare("UPDATE users SET role = ?, email_verified_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?").bind(role === "admin" ? "admin" : "customer", user.id),
     env.DB.prepare("DELETE FROM verification_codes WHERE email = ?").bind(email),
   ]);
   const token = await createSession(env, user.id);
@@ -386,9 +386,11 @@ async function login(request, env, origin) {
   if (!user.email_verified_at) throw new ApiError("Bekræft først din e-mail. Vælg Opret bruger igen for at få en ny kode.", 403, "email_not_verified");
   const isStaff = Boolean(await env.DB.prepare("SELECT user_id FROM staff_accounts WHERE user_id = ?").bind(user.id).first());
   const role = isOwnerEmail(email, env) ? "admin" : isStaff ? "staff" : "customer";
-  if (user.role !== role) {
-    await env.DB.prepare("UPDATE users SET role = ? WHERE id = ?").bind(role, user.id).run();
-    user.role = role;
+  // Staff privileges are stored in staff_accounts; users.role has a legacy CHECK constraint.
+  const storedRole = role === "admin" ? "admin" : "customer";
+  if (user.role !== storedRole) {
+    await env.DB.prepare("UPDATE users SET role = ? WHERE id = ?").bind(storedRole, user.id).run();
+    user.role = storedRole;
   }
   const token = await createSession(env, user.id);
   return json({ token, user: await publicUser(user, env) }, 200, origin);
