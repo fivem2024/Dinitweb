@@ -101,6 +101,15 @@
     staffDialog.className = 'modal';
     staffDialog.innerHTML = '<h2>Opret medarbejder</h2><p>Giv adgang til kunder, journaler, kontrakter, fakturaer og henvendelser.</p>';
     staffForm.className = 'form-grid';
+    const passwordField = document.createElement('label');
+    passwordField.className = 'field wide';
+    passwordField.textContent = 'Adgangskode til medarbejderen';
+    const passwordInput = document.createElement('input');
+    passwordInput.type = 'password'; passwordInput.name = 'password'; passwordInput.required = true;
+    passwordInput.minLength = 12; passwordInput.maxLength = 200; passwordInput.autocomplete = 'new-password';
+    passwordInput.placeholder = 'Mindst 12 tegn';
+    passwordField.append(passwordInput);
+    staffForm.querySelector('[type="submit"]').before(passwordField);
     staffForm.querySelectorAll('label').forEach(label => label.classList.add('field'));
     const submit = staffForm.querySelector('[type="submit"]');
     const actions = document.createElement('div');
@@ -130,6 +139,26 @@
     #adminApp #view-staff .table td{vertical-align:middle}
     `;
   }
+  if ($('.staff-help')) $('.staff-help').textContent = 'Opret medarbejderen med en adgangskode, som personen selv kan ændre via Skift adgangskode i admin-panelet. Eksisterende bekræftede konti beholder deres nuværende adgangskode. Kun ejeren kan slette og administrere adgang.';
+  const passwordDialog = document.createElement('dialog');
+  passwordDialog.className = 'modal'; passwordDialog.id = 'passwordDialog';
+  passwordDialog.innerHTML = '<h2>Skift adgangskode</h2><p>Opdater adgangskoden til din egen konto.</p><form class="form-grid" id="changePasswordForm"><label class="field wide">Nuværende adgangskode<input name="current_password" type="password" autocomplete="current-password" required maxlength="200"></label><label class="field wide">Ny adgangskode<input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="200" placeholder="Mindst 12 tegn"></label><label class="field wide">Gentag ny adgangskode<input name="confirm_password" type="password" autocomplete="new-password" required minlength="12" maxlength="200"></label><p id="passwordStatus" class="field wide" role="status"></p><div class="modal-actions wide"><button type="button" class="action light" id="cancelPassword">Annuller</button><button class="action" type="submit">Gem adgangskode</button></div></form>';
+  $('#adminApp').append(passwordDialog);
+  const passwordButton = document.createElement('button');
+  passwordButton.type = 'button'; passwordButton.className = 'side-link'; passwordButton.innerHTML = '<span class="ico">⚿</span><span class="label">Skift adgangskode</span>';
+  $('.side-bottom')?.before(passwordButton);
+  passwordButton.addEventListener('click', () => { $('#changePasswordForm').reset(); $('#passwordStatus').textContent = ''; passwordDialog.showModal(); });
+  $('#cancelPassword').addEventListener('click', () => passwordDialog.close());
+  style.textContent += '#adminApp #passwordDialog{box-sizing:border-box;background:#0d1c2b;border:1px solid #29435f;color:#edf5ff;max-height:90vh;overflow:auto}#passwordDialog::backdrop{background:#06111fcc;backdrop-filter:blur(3px)}#passwordDialog .wide{grid-column:1/-1}#passwordDialog input{box-sizing:border-box;width:100%;background:#071321;color:#edf5ff;border:1px solid #29435f;padding:11px;border-radius:6px}#passwordDialog .field,#passwordDialog>p{color:#b8c9db}';
+  $('#changePasswordForm').addEventListener('submit', async event => {
+    event.preventDefault(); const form = event.currentTarget, data = Object.fromEntries(new FormData(form));
+    const status = $('#passwordStatus'), button = form.querySelector('[type="submit"]');
+    if (data.password !== data.confirm_password) { status.textContent = 'De nye adgangskoder er ikke ens.'; return; }
+    button.disabled = true; status.textContent = 'Gemmer…';
+    try { await api('/api/admin/password', { method: 'POST', body: { current_password: data.current_password, password: data.password } }); form.reset(); status.textContent = 'Adgangskoden er ændret. Andre aktive login er afsluttet.'; }
+    catch (error) { status.textContent = error.message; }
+    finally { button.disabled = false; }
+  });
   const renderStaff = () => {
     const list = $('#staffList'); if (!list) return;
     const term = ($('#staffSearch')?.value || '').trim().toLocaleLowerCase('da-DK');
