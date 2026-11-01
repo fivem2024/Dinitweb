@@ -21,6 +21,20 @@ export default {
       if (path === "/api/auth/verify" && request.method === "POST") return await verifyEmail(request, env, origin);
       if (path === "/api/auth/login" && request.method === "POST") return await login(request, env, origin);
       if (path === "/api/auth/logout" && request.method === "POST") return await logout(request, env, origin);
+      if (path === "/api/admin/password" && request.method === "POST") {
+        const user = await requireAdmin(request, env);
+        await rateLimit(request, env, "change-password", 5, 60);
+        const body = await readJson(request);
+        const password = String(body.password || ""), current = String(body.current_password || "");
+        if (password.length < 12 || password.length > 200) throw new ApiError("Den nye adgangskode skal være mellem 12 og 200 tegn.", 400, "invalid_password");
+        if (await hashPassword(current, user.password_salt) !== user.password_hash) throw new ApiError("Din nuværende adgangskode er forkert.", 400, "invalid_password");
+        const salt = randomHex(16), hash = await hashPassword(password, salt);
+        await env.DB.batch([
+          env.DB.prepare("UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?").bind(hash, salt, user.id),
+          env.DB.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?").bind(user.id, await sha256(bearerToken(request))),
+        ]);
+        return json({ ok: true }, 200, origin);
+      }
       if (path === "/api/me" && request.method === "GET") {
         const user = await requireUser(request, env);
         return json({ user: await publicUser(user, env) }, 200, origin);
@@ -36,21 +50,27 @@ export default {
         const body = await readJson(request);
         const name = text(body.name, 100), email = normalizeEmail(body.email), phone = text(body.phone, 40);
         if (!name || !isEmail(email)) throw new ApiError("Udfyld navn og en gyldig e-mail.", 400, "invalid_staff");
+        const password = String(body.password || "");
+        if (password.length < 12 || password.length > 200) throw new ApiError("Adgangskoden skal være mellem 12 og 200 tegn.", 400, "invalid_password");
         if (isOwnerEmail(email, env)) throw new ApiError("Ejerkontoen kan ikke oprettes som medarbejder.", 400, "owner_cannot_be_staff");
         let user = await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(email).first();
         if (user && await env.DB.prepare("SELECT user_id FROM staff_accounts WHERE user_id = ?").bind(user.id).first()) {
           throw new ApiError("E-mailen er allerede tilknyttet en medarbejder.", 409, "staff_exists");
         }
         if (!user) {
-          const id = crypto.randomUUID(), salt = randomHex(16), randomPassword = randomHex(32);
-          const passwordHash = await hashPassword(randomPassword, salt);
+          const id = crypto.randomUUID(), salt = randomHex(16);
+          const passwordHash = await hashPassword(password, salt);
           await env.DB.prepare(`INSERT INTO users (id, name, email, phone, password_hash, password_salt, role)
             VALUES (?, ?, ?, ?, ?, ?, 'customer')`).bind(id, name, email, phone, passwordHash, salt).run();
           user = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(id).first();
         }
+        if (!user.email_verified_at) {
+          const salt = randomHex(16), hash = await hashPassword(password, salt);
+          await env.DB.prepare("UPDATE users SET name = ?, phone = ?, password_hash = ?, password_salt = ?, email_verified_at = ? WHERE id = ?").bind(name, phone, hash, salt, new Date().toISOString(), user.id).run();
+        }
         await env.DB.prepare(`INSERT INTO staff_accounts (user_id, created_by)
           VALUES (?, ?) ON CONFLICT(user_id) DO NOTHING`).bind(user.id, owner.id).run();
-        return json({ staff: { id: user.id, name: user.name, email: user.email, phone: user.phone || "", email_verified_at: user.email_verified_at }, message: "Medarbejderen er oprettet. Personen skal oprette adgangskode og bekræfte e-mailen via Opret bruger." }, 201, origin);
+        return json({ staff: { id: user.id, name: user.name, email: user.email, phone: user.phone || "" }, message: user.email_verified_at ? "Medarbejderadgang er oprettet til den eksisterende konto. Personen logger ind med sin eksisterende adgangskode." : "Medarbejderen er oprettet og kan logge ind med e-mail og den valgte adgangskode. Adgangskoden kan ændres i admin-panelet." }, 201, origin);
       }
       const staffDeleteMatch = path.match(/^\/api\/admin\/staff\/([a-f0-9-]+)$/i);
       if (staffDeleteMatch && request.method === "DELETE") {
@@ -600,4 +620,3 @@ function json(data, status = 200, origin) {
 class ApiError extends Error {
   constructor(message, status, code) { super(message); this.status = status; this.code = code; }
 }
-
